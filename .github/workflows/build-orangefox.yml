@@ -1,0 +1,132 @@
+name: Build OrangeFox
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build-orangefox.yml
+      - device/lge/caymanslm/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: orangefox-caymanslm
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+
+    steps:
+      - name: Check out device tree
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Expand build storage
+        uses: easimon/maximize-build-space@c28619d8999a147d5e09c1199f84ff6af6ad5794
+        with:
+          root-reserve-mb: 8192
+          swap-size-mb: 8192
+          remove-android: true
+          remove-codeql: true
+          remove-dotnet: true
+          remove-haskell: true
+          remove-docker-images: true
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison build-essential ccache curl flex g++-multilib \
+            gcc-multilib git git-lfs gnupg gperf imagemagick \
+            lib32readline-dev lib32z1-dev libelf-dev liblz4-tool \
+            libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop \
+            pngcrush python-is-python3 rsync schedtool squashfs-tools \
+            xsltproc zip zlib1g-dev
+          sudo curl -fsSL \
+            https://storage.googleapis.com/git-repo-downloads/repo \
+            -o /usr/local/bin/repo
+          sudo chmod 0755 /usr/local/bin/repo
+
+      - name: Sync OrangeFox 12.1
+        env:
+          FOX_SYNC_COMMIT: 11e4406b2bd1de939a26b6bfbad7e371cc3b1fa7
+        run: |
+          git clone https://gitlab.com/OrangeFox/sync.git orangefox-sync
+          git -C orangefox-sync checkout "$FOX_SYNC_COMMIT"
+          ./orangefox-sync/orangefox_sync.sh \
+            --branch 12.1 \
+            --path "$GITHUB_WORKSPACE/fox"
+          df -h
+
+      - name: Install caymanslm device tree
+        run: |
+          mkdir -p fox/device/lge
+          cp -a device/lge/caymanslm fox/device/lge/caymanslm
+
+      - name: Build recovery
+        shell: bash
+        run: |
+          set -o pipefail
+          export ALLOW_MISSING_DEPENDENCIES=true
+          export FOX_BUILD_DEVICE=caymanslm
+          export FOX_BUILD_TYPE=Alpha
+          export LC_ALL=C
+          export USE_CCACHE=1
+          export CCACHE_EXEC=/usr/bin/ccache
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
+          export CCACHE_MAXSIZE=8G
+          cd fox
+          source build/envsetup.sh
+          lunch twrp_caymanslm-eng
+          mka adbd recoveryimage 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+
+      - name: Validate recovery image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image=fox/out/target/product/caymanslm/recovery.img
+          test -f "$image"
+          size=$(stat -c %s "$image")
+          test "$size" -le 104857600
+          mkdir -p artifacts/unpacked
+          cp "$image" artifacts/recovery-caymanslm.img
+          sha256sum "$image" | tee artifacts/SHA256SUMS
+          python3 fox/system/tools/mkbootimg/unpack_bootimg.py \
+            --boot_img "$image" \
+            --out artifacts/unpacked \
+            --format mkbootimg | tee artifacts/boot-header.txt
+          python3 fox/external/avb/avbtool.py info_image \
+            --image "$image" | tee artifacts/avb-info.txt
+          cp fox/out/target/product/caymanslm/OrangeFox-*.zip artifacts/ 2>/dev/null || true
+
+      - name: Upload recovery
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: orangefox-caymanslm-${{ github.run_number }}
+          path: artifacts/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Collect diagnostics
+        if: always()
+        run: |
+          mkdir -p diagnostics
+          cp build.log diagnostics/ 2>/dev/null || true
+          df -h > diagnostics/disk-usage.txt
+          if [ -d fox ]; then
+            repo -C fox manifest -r > diagnostics/pinned-manifest.xml 2>/dev/null || true
+          fi
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: orangefox-caymanslm-diagnostics-${{ github.run_number }}
+          path: diagnostics/
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,8 @@
+.DS_Store
+.ccache/
+artifacts/
+build.log
+diagnostics/
+extracted files/
+fox/
+orangefox-sync/
