@@ -2,12 +2,6 @@ name: Build OrangeFox
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/build-orangefox.yml
-      - device/lge/caymanslm/**
 
 permissions:
   contents: read
@@ -71,12 +65,22 @@ jobs:
         env:
           FOX_SYNC_COMMIT: 11e4406b2bd1de939a26b6bfbad7e371cc3b1fa7
         run: |
+          mkdir -p fox
+          cd fox
+          repo init --depth=1 \
+            -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git \
+            -b twrp-12.1
+          mkdir -p .repo/local_manifests
+          cp "$GITHUB_WORKSPACE/.github/manifests/caymanslm-prune.xml" \
+            .repo/local_manifests/caymanslm-prune.xml
+          cd "$GITHUB_WORKSPACE"
           git clone https://gitlab.com/OrangeFox/sync.git orangefox-sync
           git -C orangefox-sync checkout "$FOX_SYNC_COMMIT"
           cd orangefox-sync
           ./orangefox_sync.sh \
             --branch 12.1 \
             --path "$GITHUB_WORKSPACE/fox"
+          du -sh "$GITHUB_WORKSPACE/fox"
           df -h
 
       - name: Install caymanslm device tree
@@ -87,15 +91,18 @@ jobs:
       - name: Build recovery
         shell: bash
         run: |
-          set -o pipefail
+          exec > >(tee "$GITHUB_WORKSPACE/build.log") 2>&1
           export ALLOW_MISSING_DEPENDENCIES=true
           export FOX_BUILD_DEVICE=caymanslm
           export FOX_BUILD_TYPE=Alpha
           export LC_ALL=C
           cd fox
+          set +e
           source build/envsetup.sh
+          set -e
+          declare -F mka >/dev/null
           lunch twrp_caymanslm-eng
-          mka adbd recoveryimage 2>&1 | tee "$GITHUB_WORKSPACE/build.log"
+          mka adbd recoveryimage
 
       - name: Validate recovery image
         shell: bash
@@ -132,7 +139,7 @@ jobs:
           cp build.log /tmp/diagnostics/ 2>/dev/null || true
           df -h > /tmp/diagnostics/disk-usage.txt
           if [ -d fox ]; then
-            repo -C fox manifest -r > /tmp/diagnostics/pinned-manifest.xml 2>/dev/null || true
+            (cd fox && repo manifest -r) > /tmp/diagnostics/pinned-manifest.xml 2>/dev/null || true
           fi
 
       - name: Upload diagnostics

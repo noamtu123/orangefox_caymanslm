@@ -8,7 +8,8 @@ kernel, DTB, and recovery DTBO prebuilts extracted over EDL.
 
 ## GitHub Actions build
 
-Run the **Build OrangeFox** workflow manually. A successful run uploads:
+Run the **Build OrangeFox** workflow manually. Device-tree pushes do not start
+expensive builds automatically. A successful run uploads:
 
 - `recovery-caymanslm.img`
 - SHA-256 checksum
