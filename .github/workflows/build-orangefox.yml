@@ -57,7 +57,8 @@ jobs:
         run: |
           git clone https://gitlab.com/OrangeFox/sync.git orangefox-sync
           git -C orangefox-sync checkout "$FOX_SYNC_COMMIT"
-          ./orangefox-sync/orangefox_sync.sh \
+          cd orangefox-sync
+          ./orangefox_sync.sh \
             --branch 12.1 \
             --path "$GITHUB_WORKSPACE/fox"
           df -h
