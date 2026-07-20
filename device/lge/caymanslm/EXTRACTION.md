@@ -30,9 +30,9 @@ recovery DTBO is also byte-identical to the meaningful 817661-byte portion of
 - UFS boot device at `soc/1d84000.ufshc`
 - Recovery brightness path at `/sys/class/backlight/panel0-backlight/brightness`
 
-## Dump anomaly
+## vbmeta_system
 
-`vbmeta_system_b.bin` is 33554432 bytes and identifies as an ext4 filesystem,
-not an AVB image. A valid slot-A `vbmeta_system` dump is 65536 bytes. The slot-B
-file was read from an incorrect range or partition and must not be flashed or
-used as vbmeta.
+The corrected `vbmeta_system_a.bin` and `vbmeta_system_b.bin` dumps are each
+65536 bytes of zeroes. They are valid blank partition reads, not standalone AVB
+images. The main `vbmeta_a` and `vbmeta_b` images directly contain descriptors
+for the dynamic partitions, so this tree does not use `vbmeta_system`.

@@ -22,19 +22,34 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Check out device tree
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Remove unused runner software
+        run: |
+          sudo rm -rf \
+            /opt/az \
+            /opt/ghc \
+            /opt/hostedtoolcache \
+            /opt/microsoft \
+            /usr/local/julia* \
+            /usr/local/lib/android \
+            /usr/local/share/boost \
+            /usr/share/dotnet \
+            /usr/share/swift
+          sudo docker image prune --all --force
+          df -h
 
       - name: Expand build storage
         uses: easimon/maximize-build-space@c28619d8999a147d5e09c1199f84ff6af6ad5794
         with:
-          root-reserve-mb: 8192
-          swap-size-mb: 8192
+          root-reserve-mb: 1024
+          swap-size-mb: 2048
           remove-android: true
           remove-codeql: true
           remove-dotnet: true
           remove-haskell: true
           remove-docker-images: true
+
+      - name: Check out device tree
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install build dependencies
         run: |
@@ -76,10 +91,6 @@ jobs:
           export FOX_BUILD_DEVICE=caymanslm
           export FOX_BUILD_TYPE=Alpha
           export LC_ALL=C
-          export USE_CCACHE=1
-          export CCACHE_EXEC=/usr/bin/ccache
-          export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
-          export CCACHE_MAXSIZE=8G
           cd fox
           source build/envsetup.sh
           lunch twrp_caymanslm-eng
@@ -116,11 +127,11 @@ jobs:
       - name: Collect diagnostics
         if: always()
         run: |
-          mkdir -p diagnostics
-          cp build.log diagnostics/ 2>/dev/null || true
-          df -h > diagnostics/disk-usage.txt
+          mkdir -p /tmp/diagnostics
+          cp build.log /tmp/diagnostics/ 2>/dev/null || true
+          df -h > /tmp/diagnostics/disk-usage.txt
           if [ -d fox ]; then
-            repo -C fox manifest -r > diagnostics/pinned-manifest.xml 2>/dev/null || true
+            repo -C fox manifest -r > /tmp/diagnostics/pinned-manifest.xml 2>/dev/null || true
           fi
 
       - name: Upload diagnostics
@@ -128,6 +139,6 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: orangefox-caymanslm-diagnostics-${{ github.run_number }}
-          path: diagnostics/
+          path: /tmp/diagnostics/
           if-no-files-found: warn
           retention-days: 14

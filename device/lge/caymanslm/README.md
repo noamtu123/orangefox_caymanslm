@@ -38,5 +38,6 @@ Initial validation order:
 5. F2FS `data` mounts; test decryption only after collecting recovery logs.
 6. Reboot to system, bootloader, recovery, and EDL all work.
 
-The extracted `vbmeta_system_b.bin` is not valid vbmeta: it is a 32 MiB ext4
-image. It is not used by this tree.
+The corrected `vbmeta_system_a` and `vbmeta_system_b` dumps are blank 64 KiB
+partitions rather than standalone AVB images. They are not used by this tree;
+the main `vbmeta_a` and `vbmeta_b` images carry the relevant descriptors.
