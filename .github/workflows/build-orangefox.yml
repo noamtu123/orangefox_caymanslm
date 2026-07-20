@@ -37,6 +37,22 @@ jobs:
           sudo docker image prune --all --force
           df -h
 
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison build-essential ccache curl flex g++-multilib \
+            gcc-multilib git git-lfs gnupg gperf imagemagick \
+            lib32readline-dev lib32z1-dev libelf-dev liblz4-tool \
+            libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop \
+            pngcrush python-is-python3 rsync schedtool squashfs-tools \
+            xsltproc zip zlib1g-dev
+          sudo apt-get clean
+          sudo curl -fsSL \
+            https://storage.googleapis.com/git-repo-downloads/repo \
+            -o /usr/local/bin/repo
+          sudo chmod 0755 /usr/local/bin/repo
+
       - name: Expand build storage
         uses: easimon/maximize-build-space@c28619d8999a147d5e09c1199f84ff6af6ad5794
         with:
@@ -50,21 +66,6 @@ jobs:
 
       - name: Check out device tree
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            bc bison build-essential ccache curl flex g++-multilib \
-            gcc-multilib git git-lfs gnupg gperf imagemagick \
-            lib32readline-dev lib32z1-dev libelf-dev liblz4-tool \
-            libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop \
-            pngcrush python-is-python3 rsync schedtool squashfs-tools \
-            xsltproc zip zlib1g-dev
-          sudo curl -fsSL \
-            https://storage.googleapis.com/git-repo-downloads/repo \
-            -o /usr/local/bin/repo
-          sudo chmod 0755 /usr/local/bin/repo
 
       - name: Sync OrangeFox 12.1
         env:
