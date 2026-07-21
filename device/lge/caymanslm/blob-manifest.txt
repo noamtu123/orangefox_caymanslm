@@ -7,11 +7,20 @@
 # bundled (FBE uses libQSEEComAPI -> qseecomd, not the HIDL service); its RC and
 # VINTF entry were removed accordingly. Runtime service startup + sepolicy are
 # still unproven until the on-device decrypt test.
+#
+# TARGET PATHS follow the device/qcom/twrp-common contract:
+#   - service binaries -> recovery ramdisk /system/bin (where twrp-common's
+#     init.recovery.qcom_decrypt(.fbe).rc service defs exec them on A10+);
+#   - ELF closure -> recovery ramdisk /vendor/lib64 (LD_LIBRARY_PATH search).
+# The per-service .rc files that used to live under /vendor/etc/init are NOT
+# bundled: twrp-common supplies the correctly-sequenced service definitions.
+# The VINTF fragment (android.hardware.keymaster_gatekeeper_caymanslm.xml) is a
+# hand-written manifest, not a dumped blob, so it is not SHA-listed here.
 
 SHA256                                               SIZE         SOURCE->TARGET
-51dfd65bcdba19b658f469feffd9200c629dde51b1df6f95001445abb2f66099 11216        /bin/hw/android.hardware.keymaster@4.0-service-qti -> /vendor/bin/hw/android.hardware.keymaster@4.0-service-qti
-91297d849ad3b7fd8889ee5ab0cf8c7fde48889743730ff9097a71fbcdb3325e 11040        /bin/hw/android.hardware.gatekeeper@1.0-service-qti -> /vendor/bin/hw/android.hardware.gatekeeper@1.0-service-qti
-7f9b98e4de6ce1d7942639afcccd5a845ce4581d80724c48a56e747cc7b56f0f 16504        /bin/qseecomd -> /vendor/bin/qseecomd
+51dfd65bcdba19b658f469feffd9200c629dde51b1df6f95001445abb2f66099 11216        /bin/hw/android.hardware.keymaster@4.0-service-qti -> /system/bin/android.hardware.keymaster@4.0-service-qti
+91297d849ad3b7fd8889ee5ab0cf8c7fde48889743730ff9097a71fbcdb3325e 11040        /bin/hw/android.hardware.gatekeeper@1.0-service-qti -> /system/bin/android.hardware.gatekeeper@1.0-service-qti
+7f9b98e4de6ce1d7942639afcccd5a845ce4581d80724c48a56e747cc7b56f0f 16504        /bin/qseecomd -> /system/bin/qseecomd
 a2fa68ab0dd28970752a500bca1fc9ad82220c3090fa7a8f9a9dfecfad4c887a 124592       /lib64/vendor.qti.hardware.qseecom@1.0.so -> /vendor/lib64/vendor.qti.hardware.qseecom@1.0.so
 9040ae17c40ebbc3a94a53bacd171fc7922d5fb19e43bd55687f50c8cb693ff1 149528       /lib64/libqtikeymaster4.so -> /vendor/lib64/libqtikeymaster4.so
 7cd832d5dfec8292481e3a24ba953889e004e57757e9b590eeefcafc54449041 44024        /lib64/libQSEEComAPI.so -> /vendor/lib64/libQSEEComAPI.so
@@ -20,6 +29,3 @@ f0aba1daa3e5d874d2b4774a16fe038587d44041f7ea8dccb229d9b1d48bdc90 14976        /l
 110dd79147fa6d6bdf7d09f9c64279909474d84d8c749908012d6d7e5f9dc210 18928        /lib64/libqcbor.so -> /vendor/lib64/libqcbor.so
 d1f2a5a4ea06e4b9a47f1a49db8203a6cca6ab6e7ce42e871ec8095a0d0ae765 241088       /lib64/libdiag.so -> /vendor/lib64/libdiag.so
 f1d37cdd3985f797b9a8f37679eb6e2bff920dea1ff74c361cc01af4ef77d3bc 40296        /lib64/libdrmfs.so -> /vendor/lib64/libdrmfs.so
-3a063731f78c82b3971d954243f78431cb642fc7856ae371b745aebc710e77fd 173          /etc/init/android.hardware.keymaster@4.0-service-qti.rc -> /vendor/etc/init/android.hardware.keymaster@4.0-service-qti.rc
-7ce6d8a9f91c4493c39087950535164917b66755ed70c94446ab9533bbad1783 135          /etc/init/android.hardware.gatekeeper@1.0-service-qti.rc -> /vendor/etc/init/android.hardware.gatekeeper@1.0-service-qti.rc
-23e2bfb29f800221cc2137812194b790d8fe3dcdaae9db5c57dd4967e7f2a1b8 283          /etc/init/qseecomd.rc -> /vendor/etc/init/qseecomd.rc

@@ -1,10 +1,19 @@
 # Labels for the bundled FBE decrypt binaries in the recovery ramdisk.
-# keymaster/gatekeeper use standard AOSP HAL exec types (always defined).
+#
+# The twrp-common init.recovery.qcom_decrypt(.fbe).rc service definitions run
+# these under an explicit "seclabel u:r:recovery:s0", so the domain transition
+# does not depend on these exec-type labels; they are kept for correctness and
+# to match the binaries' final /system/bin location in the recovery ramdisk.
 #
 # NOTE (first decrypt-iteration item): qseecomd labeling and any AVC denials
 # raised while starting the crypto services must be resolved from the on-device
 # /tmp/recovery.log of the first one-slot decrypt test. Do not guess additional
 # allow rules blind — add them from real denials.
 
-/vendor/bin/hw/android\.hardware\.keymaster@4\.0-service-qti   u:object_r:hal_keymaster_default_exec:s0
-/vendor/bin/hw/android\.hardware\.gatekeeper@1\.0-service-qti  u:object_r:hal_gatekeeper_default_exec:s0
+# qseecomd intentionally NOT labeled here: its Qualcomm exec type
+# (qseecomd_exec) is not defined in the OrangeFox recovery sepolicy, and
+# referencing an undefined type breaks the file_contexts build. It runs under
+# the explicit recovery seclabel from the rc; add a label only if a real AVC
+# denial on the first on-device decrypt test proves one is needed.
+/system/bin/android\.hardware\.keymaster@4\.0-service-qti     u:object_r:hal_keymaster_default_exec:s0
+/system/bin/android\.hardware\.gatekeeper@1\.0-service-qti    u:object_r:hal_gatekeeper_default_exec:s0

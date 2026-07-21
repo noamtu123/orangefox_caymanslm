@@ -26,9 +26,13 @@
 <manifest>
     <remote name="los" fetch="https://github.com/LineageOS" />
 
-    <!-- Kernel source (built in-tree via TARGET_KERNEL_SOURCE). -->
+    <!-- Kernel source (built in-tree via TARGET_KERNEL_SOURCE).
+         upstream= names the branch that contains the pinned SHA so that
+         `repo sync -c` can fetch a bare revision deterministically (without it,
+         a shallow -c sync of a bare SHA is repo-version-dependent). -->
     <project name="android_kernel_lge_sdm845"
              path="kernel/lge/sdm845"
              remote="los"
-             revision="efa8458f79dffeb380d43b38b9403407f87d9f05" />
+             revision="efa8458f79dffeb380d43b38b9403407f87d9f05"
+             upstream="refs/heads/lineage-22.2" />
 </manifest>

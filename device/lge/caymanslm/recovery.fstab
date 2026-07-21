@@ -2,9 +2,11 @@
 # Dynamic A/B: system/product/vendor are logical inside super; slotselect picks
 # the active slot at runtime. Raw partitions are exposed for flashing/backup.
 #
-# Encryption: this device uses plain Qualcomm FBE (fileencryption=ice) with a
-# dedicated /metadata partition for key storage. It does NOT use metadata
-# encryption (dm-default-key) or wrapped keys — matches stock + LineageOS fstab.
+# Encryption: this device uses plain Qualcomm FBE (fileencryption=ice). It does
+# NOT use metadata encryption (dm-default-key) or wrapped keys — matches stock +
+# LineageOS fstab. Plain-FBE key material lives under /data (/data/unencrypted,
+# /data/misc/vold), not on /metadata; /metadata is listed only so TWRP can
+# back it up / wipe it, never as the FBE key store.
 #
 # mount_point       fstype  device                                              flags
 
@@ -21,8 +23,12 @@
 /external_sd        auto    /devices/platform/soc/8804000.sdhci/mmc_host*       flags=display="microSD";storage;wipeingui;removable;fsflags="nosuid,nodev"
 /usb_otg            auto    /devices/platform/soc/*.ssusb/*.dwc3/xhci-hcd.*.auto* flags=display="USB-OTG";storage;wipeingui;removable
 
-# --- Firmware (read-only, informational) ---
+# --- Firmware / vendor partitions needed by the QSEE crypto stack ---
+# persist + dsp are mounttodecrypt: qseecomd/keymaster on LG SDM845 touch them
+# while bringing up TZ listeners for FBE. Matches the LineageOS fstab set.
 /vendor/firmware_mnt vfat   /dev/block/bootdevice/by-name/modem                 flags=slotselect;display="Firmware";mounttodecrypt;backup=0
+/mnt/vendor/persist ext4    /dev/block/bootdevice/by-name/persist               flags=display="Persist";mounttodecrypt;backup=0
+/vendor/dsp         ext4    /dev/block/bootdevice/by-name/dsp                   flags=slotselect;display="DSP";mounttodecrypt;backup=0
 
 # --- Raw / flashable partitions (backup + install targets) ---
 /boot               emmc    /dev/block/bootdevice/by-name/boot                  flags=slotselect;display="Boot";backup=1;flashimg=1

@@ -138,16 +138,29 @@ TW_EXCLUDE_MTP := true
 
 # -------------------------------------------------------------------------
 # Crypto — Qualcomm FBE (keymaster @4.0 / gatekeeper @1.0 / qseecom @1.0)
-# The decrypt blob closure is bundled via recovery/root; fox_14.1 auto-detects
-# the keymaster version from the bundled vendor manifest.
 #
-# Device uses plain FBE (fileencryption=ice) — NOT metadata encryption — so
-# TW_INCLUDE_FBE_METADATA_DECRYPT is intentionally NOT set (matches stock+LOS).
-# PLATFORM_VERSION / PLATFORM_SECURITY_PATCH are intentionally left to the base
-# (Android 15) defaults; forcing them caused version/rollback conflicts.
+# BOARD_USES_QCOM_FBE_DECRYPTION is the master switch: it makes
+# device/qcom/twrp-common define the qcom_decrypt / qcom_decrypt_fbe modules,
+# which install init.recovery.qcom_decrypt(.fbe).rc + prepdecrypt.sh and drive
+# the qseecomd -> keymaster/gatekeeper startup chain. Without it, the
+# qcom_decrypt* entries in device.mk PRODUCT_PACKAGES silently resolve to
+# nothing and the decrypt trigger chain never enters the ramdisk.
+#
+# The bundled service binaries live in recovery/root/system/bin (the path
+# twrp-common's service defs exec from on Android-10+ trees); the ELF closure
+# lives in recovery/root/vendor/lib64 (reached via each service's
+# LD_LIBRARY_PATH=/vendor/lib64:...). fox_14.1 auto-detects the keymaster
+# version from the on-device vendor manifest, with the bundled ramdisk manifest
+# as fallback.
+#
+# Device uses plain FBE (fileencryption=ice). PLATFORM_VERSION /
+# PLATFORM_SECURITY_PATCH are intentionally left to the base defaults;
+# prepdecrypt runs with SETPATCH=false on recovery-partition devices.
 # -------------------------------------------------------------------------
 TW_INCLUDE_CRYPTO := true
 TW_INCLUDE_CRYPTO_FBE := true
+BOARD_USES_QCOM_DECRYPTION := true
+BOARD_USES_QCOM_FBE_DECRYPTION := true
 
 # Recovery sepolicy for the bundled crypto services.
 BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor
