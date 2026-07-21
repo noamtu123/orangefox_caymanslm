@@ -22,26 +22,26 @@ jobs:
     timeout-minutes: 420
 
     steps:
-      - name: Free up runner disk
+      - name: Free up disk space (aggressive, on root)
         run: |
+          # maximize-build-space's LVM only yielded ~42 GiB here (too small for a
+          # 14.1 sync). Aggressive cleanup of preinstalled toolchains instead
+          # leaves the full ~68 GiB free on root, which we build on directly.
+          echo "Before cleanup:"; df -h /
           sudo rm -rf \
-            /opt/az /opt/ghc /opt/hostedtoolcache /opt/microsoft \
-            /usr/local/julia* /usr/local/lib/android /usr/local/share/boost \
-            /usr/share/dotnet /usr/share/swift /usr/local/.ghcup
+            /usr/local/lib/android \
+            /opt/hostedtoolcache \
+            /usr/share/dotnet \
+            /opt/ghc /usr/local/.ghcup \
+            /usr/share/swift \
+            /usr/local/share/boost \
+            /usr/local/share/powershell \
+            /usr/local/lib/node_modules \
+            /opt/az /opt/microsoft /usr/local/julia* \
+            /usr/lib/google-cloud-sdk /usr/local/share/chromium || true
           sudo docker image prune --all --force || true
-          df -h
-
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@fc881a613ad2a34aca9c9624518214ebc21dfc0c # v10
-        with:
-          root-reserve-mb: 2048
-          swap-size-mb: 4096
-          remove-android: 'true'
-          remove-codeql: 'true'
-          remove-dotnet: 'true'
-          remove-haskell: 'true'
-          remove-docker-images: 'true'
-          build-mount-path: /home/runner/work/build
+          sudo apt-get clean || true
+          echo "After cleanup:"; df -h /
 
       - name: Install build dependencies
         run: |
@@ -68,7 +68,7 @@ jobs:
         env:
           FOX_SYNC_COMMIT: 11e4406b2bd1de939a26b6bfbad7e371cc3b1fa7
         run: |
-          FOX=/home/runner/work/build/fox
+          FOX=/home/runner/fox
           mkdir -p "$FOX"
           git clone https://gitlab.com/OrangeFox/sync.git "$GITHUB_WORKSPACE/orangefox-sync"
           git -C "$GITHUB_WORKSPACE/orangefox-sync" checkout "$FOX_SYNC_COMMIT"
@@ -82,7 +82,7 @@ jobs:
 
       - name: Add pinned LineageOS/vendor projects and sync
         run: |
-          FOX=/home/runner/work/build/fox
+          FOX=/home/runner/fox
           mkdir -p "$FOX/.repo/local_manifests"
           cp "$GITHUB_WORKSPACE/src/.github/manifests/caymanslm.xml" \
             "$FOX/.repo/local_manifests/caymanslm.xml"
@@ -93,14 +93,14 @@ jobs:
 
       - name: Install caymanslm device tree
         run: |
-          FOX=/home/runner/work/build/fox
+          FOX=/home/runner/fox
           mkdir -p "$FOX/device/lge"
           rm -rf "$FOX/device/lge/caymanslm"
           cp -a "$GITHUB_WORKSPACE/src/device/lge/caymanslm" "$FOX/device/lge/caymanslm"
 
       - name: Disk capacity gate (require >= 25 GiB free before build)
         run: |
-          avail_kb=$(df --output=avail -k /home/runner/work/build | tail -1 | tr -d ' ')
+          avail_kb=$(df --output=avail -k /home/runner | tail -1 | tr -d ' ')
           avail_gib=$(( avail_kb / 1024 / 1024 ))
           echo "Free after sync: ${avail_gib} GiB"
           if [ "$avail_gib" -lt 25 ]; then
@@ -111,7 +111,7 @@ jobs:
       - name: Build recovery
         shell: bash
         run: |
-          FOX=/home/runner/work/build/fox
+          FOX=/home/runner/fox
           exec > >(tee "$GITHUB_WORKSPACE/build.log") 2>&1
           export ALLOW_MISSING_DEPENDENCIES=true
           export FOX_BUILD_DEVICE=caymanslm
@@ -129,7 +129,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          FOX=/home/runner/work/build/fox
+          FOX=/home/runner/fox
           image="$FOX/out/target/product/caymanslm/recovery.img"
           test -f "$image"
           size=$(stat -c %s "$image")
@@ -165,7 +165,7 @@ jobs:
       - name: Collect diagnostics
         if: always()
         run: |
-          FOX=/home/runner/work/build/fox
+          FOX=/home/runner/fox
           mkdir -p /tmp/diagnostics
           cp "$GITHUB_WORKSPACE/build.log" /tmp/diagnostics/ 2>/dev/null || true
           df -h > /tmp/diagnostics/disk-usage.txt
