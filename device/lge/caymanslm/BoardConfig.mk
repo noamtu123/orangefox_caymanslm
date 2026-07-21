@@ -95,9 +95,11 @@ BOARD_MKBOOTIMG_ARGS += --tags_offset 0x00000100
 # Partition sizes (from EDL dumps / LineageOS)
 # -------------------------------------------------------------------------
 BOARD_FLASH_BLOCK_SIZE := 262144
-BOARD_BOOTIMAGE_PARTITION_SIZE := 67108864
 BOARD_DTBOIMG_PARTITION_SIZE := 8388608
 BOARD_RECOVERYIMAGE_PARTITION_SIZE := 104857600
+# BOARD_BOOTIMAGE_PARTITION_SIZE intentionally omitted: this is a recovery-only
+# build (no boot image produced). The LineageOS value (67108864) also disagrees
+# with the EDL dumps (boot_a/b = 100663296); left out to avoid a wrong assertion.
 
 # -------------------------------------------------------------------------
 # Filesystems

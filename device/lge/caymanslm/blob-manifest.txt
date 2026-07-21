@@ -1,5 +1,12 @@
 # caymanslm FBE decrypt blob package — source: vendor_a (G91030a / V30a, A11, RKQ1.210420.001, ISR)
 # arch: arm64 (64-bit)
+#
+# ELF dependency closure verified for the keymaster@4.0 + gatekeeper@1.0 +
+# qseecomd stack (every NEEDED resolves within this set or the AOSP/OFox build).
+# The vendor.qti.hardware.qseecom@1.0 HIDL *service* binary is deliberately NOT
+# bundled (FBE uses libQSEEComAPI -> qseecomd, not the HIDL service); its RC and
+# VINTF entry were removed accordingly. Runtime service startup + sepolicy are
+# still unproven until the on-device decrypt test.
 
 SHA256                                               SIZE         SOURCE->TARGET
 51dfd65bcdba19b658f469feffd9200c629dde51b1df6f95001445abb2f66099 11216        /bin/hw/android.hardware.keymaster@4.0-service-qti -> /vendor/bin/hw/android.hardware.keymaster@4.0-service-qti
@@ -16,4 +23,3 @@ f1d37cdd3985f797b9a8f37679eb6e2bff920dea1ff74c361cc01af4ef77d3bc 40296        /l
 3a063731f78c82b3971d954243f78431cb642fc7856ae371b745aebc710e77fd 173          /etc/init/android.hardware.keymaster@4.0-service-qti.rc -> /vendor/etc/init/android.hardware.keymaster@4.0-service-qti.rc
 7ce6d8a9f91c4493c39087950535164917b66755ed70c94446ab9533bbad1783 135          /etc/init/android.hardware.gatekeeper@1.0-service-qti.rc -> /vendor/etc/init/android.hardware.gatekeeper@1.0-service-qti.rc
 23e2bfb29f800221cc2137812194b790d8fe3dcdaae9db5c57dd4967e7f2a1b8 283          /etc/init/qseecomd.rc -> /vendor/etc/init/qseecomd.rc
-fe3a6b4c1fbd70e60f8688be4f580f08ab3bb7949189aabea0750db5d001db79 308          /etc/init/vendor.qti.hardware.qseecom@1.0-service.rc -> /vendor/etc/init/vendor.qti.hardware.qseecom@1.0-service.rc

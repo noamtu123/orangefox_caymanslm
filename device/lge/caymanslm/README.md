@@ -58,12 +58,18 @@ the build, advanced users may flash **both** slots so slot switches don't lose i
 
 ## Decryption support
 
-- **Verified target:** LM-G910EMW on the A11 vendor (`G91030a`) family — stock
-  A12 system and LineageOS both ride this vendor, so both decrypt with the same
-  bundled stack.
-- Boots on any LM-G910EMW regardless of firmware; **significantly older stock
-  firmware may boot but fail to decrypt** (different keymaster trustlet). Report
-  your `ro.vendor.lge.swversion` if decryption fails.
+**Status: untested — no successful compile or on-device test yet.** All claims
+below are design intent for the target firmware, not verified behavior.
+
+- **Intended target:** LM-G910EMW on the A11 vendor (`G91030a`) family — stock
+  A12 system and LineageOS both ride this vendor, so both are expected to decrypt
+  with the same bundled stack once proven on-device.
+- Expected to boot on LM-G910EMW hardware regardless of firmware, but this is a
+  target, not a tested guarantee. **Significantly older stock firmware may boot
+  but fail to decrypt** (different keymaster trustlet). Report your
+  `ro.vendor.lge.swversion` if decryption fails.
+- Compatibility is claimed only for the firmware actually inspected
+  (`G91030a`, A11 vendor). Anything else is unverified.
 
 ## Known first-iteration items (need on-device logs)
 

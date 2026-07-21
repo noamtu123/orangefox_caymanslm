@@ -24,13 +24,10 @@
             <instance>default</instance>
         </interface>
     </hal>
-    <hal format="hidl">
-        <name>vendor.qti.hardware.qseecom</name>
-        <transport>hwbinder</transport>
-        <version>1.0</version>
-        <interface>
-            <name>IQSEECom</name>
-            <instance>default</instance>
-        </interface>
-    </hal>
+    <!--
+      vendor.qti.hardware.qseecom@1.0 intentionally NOT declared here: its HIDL
+      service binary is not bundled, and FBE reaches qseecom via libQSEEComAPI ->
+      qseecomd (both present), not via the HIDL service. Re-add only if a bundled
+      /vendor/bin/hw/vendor.qti.hardware.qseecom@1.0-service is proven required.
+    -->
 </manifest>

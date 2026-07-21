@@ -54,5 +54,4 @@ PRODUCT_COPY_FILES += \
     $(RECOVERY_VENDOR)/etc/init/android.hardware.keymaster@4.0-service-qti.rc:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/etc/init/android.hardware.keymaster@4.0-service-qti.rc \
     $(RECOVERY_VENDOR)/etc/init/android.hardware.gatekeeper@1.0-service-qti.rc:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/etc/init/android.hardware.gatekeeper@1.0-service-qti.rc \
     $(RECOVERY_VENDOR)/etc/init/qseecomd.rc:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/etc/init/qseecomd.rc \
-    $(RECOVERY_VENDOR)/etc/init/vendor.qti.hardware.qseecom@1.0-service.rc:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/etc/init/vendor.qti.hardware.qseecom@1.0-service.rc \
     $(RECOVERY_VENDOR)/etc/vintf/manifest/caymanslm_recovery_crypto_manifest.xml:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/etc/vintf/manifest/caymanslm_recovery_crypto_manifest.xml

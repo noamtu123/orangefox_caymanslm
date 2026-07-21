@@ -80,7 +80,7 @@ jobs:
           du -sh "$FOX" || true
           df -h
 
-      - name: Add pinned LineageOS/vendor projects and sync
+      - name: Add pinned kernel source and sync
         run: |
           FOX=/home/runner/fox
           mkdir -p "$FOX/.repo/local_manifests"
@@ -88,7 +88,7 @@ jobs:
             "$FOX/.repo/local_manifests/caymanslm.xml"
           cd "$FOX"
           repo sync -c -j"$(nproc)" --force-sync --no-clone-bundle --no-tags \
-            kernel/lge/sdm845 vendor/lge/caymanslm vendor/lge/sdm845-common
+            kernel/lge/sdm845
           df -h
 
       - name: Install caymanslm device tree
@@ -119,9 +119,17 @@ jobs:
           export FOX_DISABLE_UPDATEZIP=1
           export LC_ALL=C
           cd "$FOX"
+          # envsetup.sh can return nonzero for benign reasons, so don't let its
+          # exit status abort the step — but immediately assert the environment
+          # it was supposed to establish, so a genuinely broken setup fails loudly
+          # instead of silently proceeding to lunch (which hid the real error).
           set +e
           source build/envsetup.sh
           set -e
+          declare -F lunch >/dev/null || { echo "::error::envsetup.sh did not define 'lunch'"; exit 1; }
+          declare -F mka   >/dev/null || { echo "::error::envsetup.sh did not define 'mka'"; exit 1; }
+          test -n "${ANDROID_BUILD_TOP:-}" || { echo "::error::ANDROID_BUILD_TOP is unset after envsetup"; exit 1; }
+          test -f bootable/recovery/orangefox.mk || { echo "::error::OrangeFox recovery (bootable/recovery/orangefox.mk) not synced"; exit 1; }
           lunch twrp_caymanslm-eng
           mka adbd recoveryimage
 

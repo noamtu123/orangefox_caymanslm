@@ -15,27 +15,20 @@
 
   NOTE: no <remove-project> prunes here — project names differ across manifest
   branches and a remove of a nonexistent project aborts `repo sync`. Disk space
-  is handled by the workflow's maximize-build-space + pre-build capacity gate.
+  is handled by the workflow's aggressive root cleanup + pre-build capacity gate.
+
+  NOTE: the TheMuppets proprietary_vendor_lge_* repos are intentionally NOT
+  synced. This tree bundles its own hand-selected, ELF-verified decrypt blob set
+  and does not inherit the LineageOS common tree, so those large repos were dead
+  weight (disk + sync-failure risk) with no build dependency. Re-add only if a
+  concrete build/source dependency on them is established.
 -->
 <manifest>
     <remote name="los" fetch="https://github.com/LineageOS" />
-    <remote name="muppets" fetch="https://github.com/TheMuppets" />
 
     <!-- Kernel source (built in-tree via TARGET_KERNEL_SOURCE). -->
     <project name="android_kernel_lge_sdm845"
              path="kernel/lge/sdm845"
              remote="los"
              revision="efa8458f79dffeb380d43b38b9403407f87d9f05" />
-
-    <!-- Proprietary vendor blobs (pinned). The FBE decrypt closure we bundle is
-         sourced from the user's own dump; vendor is synced for completeness and
-         any additional recovery-relevant libraries surfaced during bring-up. -->
-    <project name="proprietary_vendor_lge_caymanslm"
-             path="vendor/lge/caymanslm"
-             remote="muppets"
-             revision="bcb30e40c46875499253db90523883f78fa9bc51" />
-    <project name="proprietary_vendor_lge_sdm845-common"
-             path="vendor/lge/sdm845-common"
-             remote="muppets"
-             revision="4819fd7edffe796b2e89e7d75e328cb1e0efc13f" />
 </manifest>
