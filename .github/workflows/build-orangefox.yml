@@ -105,6 +105,22 @@ jobs:
           rm -rf "$FOX/device/lge/caymanslm"
           cp -a "$GITHUB_WORKSPACE/src/device/lge/caymanslm" "$FOX/device/lge/caymanslm"
 
+      - name: Patch OrangeFox source (fox_14.1 bugs)
+        run: |
+          FOX=/home/runner/fox
+          # fox_14.1: partitionmanager.cpp uses AID_MEDIA_RW but (unlike its
+          # sibling files) never includes the header that defines it. On the
+          # Android-14 (ap2a) base the constant no longer leaks in transitively,
+          # so the compile fails with "use of undeclared identifier
+          # 'AID_MEDIA_RW'". Add the include its siblings already use. Idempotent.
+          pm="$FOX/bootable/recovery/partitionmanager.cpp"
+          if ! grep -q 'private/android_filesystem_config.h' "$pm"; then
+            sed -i '/#include <pwd.h>/a #include <private/android_filesystem_config.h>' "$pm"
+            echo "Patched AID_MEDIA_RW include into partitionmanager.cpp"
+          else
+            echo "partitionmanager.cpp already includes android_filesystem_config.h — skipping"
+          fi
+
       - name: Disk capacity gate (require >= 25 GiB free before build)
         run: |
           avail_kb=$(df --output=avail -k /home/runner | tail -1 | tr -d ' ')
@@ -159,7 +175,7 @@ jobs:
             --boot_img "$image" \
             --out "$GITHUB_WORKSPACE/artifacts/unpacked" \
             --format mkbootimg | tee "$GITHUB_WORKSPACE/artifacts/boot-header.txt"
-          grep -Fq -- "--header_version 2" "$GITHUB_WORKSPACE/artifacts/boot-header.txt"
+          grep -Fq -- "--header_version 1" "$GITHUB_WORKSPACE/artifacts/boot-header.txt"
           # Confirm the FBE decrypt chain actually made it into the ramdisk.
           rr="$FOX/out/target/product/caymanslm/recovery/root"
           # (1) Hard gate: the twrp-common orchestration rc files. These are

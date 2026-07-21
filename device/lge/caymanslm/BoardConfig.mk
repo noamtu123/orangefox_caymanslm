@@ -88,8 +88,17 @@ BOARD_KERNEL_CMDLINE += androidboot.boot_devices=soc/1d84000.ufshc
 BOARD_KERNEL_CMDLINE += androidboot.hardware=caymanslm
 BOARD_KERNEL_CMDLINE += androidboot.fstab_suffix=caymanslm
 
-# Recovery boot-image geometry (header v2, offsets validated from stock recovery)
-BOARD_BOOT_HEADER_VERSION := 2
+# Recovery boot-image geometry.
+# Header v1 (NOT v2): the from-source kernel is Image.gz-dtb, i.e. the DTB is
+# appended inside the kernel — there is no separate dtb image. Header v2 has a
+# mandatory dtb section and mkbootimg aborts with "DTB image must not be empty"
+# when none is supplied. Header v1 still carries recovery_dtbo (which we use via
+# BOARD_INCLUDE_RECOVERY_DTBO) but has no separate-dtb requirement. This matches
+# how LineageOS builds this device from source (appended-dtb kernel, no forced
+# v2). The earlier "v2" value came from repacking the *stock* recovery, whose
+# prebuilt kernel carried a separate dtb — not applicable to a source build.
+# Offsets validated from stock recovery; still valid for v1.
+BOARD_BOOT_HEADER_VERSION := 1
 BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOT_HEADER_VERSION)
 BOARD_MKBOOTIMG_ARGS += --ramdisk_offset 0x01000000
 BOARD_MKBOOTIMG_ARGS += --tags_offset 0x00000100
