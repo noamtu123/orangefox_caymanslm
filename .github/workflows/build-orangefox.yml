@@ -137,7 +137,10 @@ jobs:
           declare -F mka   >/dev/null || { echo "::error::envsetup.sh did not define 'mka'"; exit 1; }
           test -n "${ANDROID_BUILD_TOP:-}" || { echo "::error::ANDROID_BUILD_TOP is unset after envsetup"; exit 1; }
           test -f bootable/recovery/orangefox.mk || { echo "::error::OrangeFox recovery (bootable/recovery/orangefox.mk) not synced"; exit 1; }
-          lunch twrp_caymanslm-eng
+          # Release-config build system (Android-14+): the lunch combo is
+          # <product>-<release>-<variant>, not <product>-<variant>. The base
+          # OrangeFox/twrp-14 manifest provides the "ap2a" release.
+          lunch twrp_caymanslm-ap2a-eng
           mka adbd recoveryimage
 
       - name: Validate recovery image

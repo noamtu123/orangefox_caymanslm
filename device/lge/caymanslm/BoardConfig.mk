@@ -48,7 +48,10 @@ AB_OTA_UPDATER := true
 AB_OTA_PARTITIONS += boot dtbo product recovery system vbmeta vendor
 BOARD_USES_METADATA_PARTITION := true
 
-PRODUCT_USE_DYNAMIC_PARTITIONS := true
+# NOTE: PRODUCT_USE_DYNAMIC_PARTITIONS is a *product* variable in the
+# release-config (Android-14+) build system and is readonly by the time
+# board_config.mk is parsed — assigning it here fails with "cannot assign to
+# readonly variable". It is set on the product side in device.mk instead.
 BOARD_SUPER_PARTITION_SIZE := 21470642176
 BOARD_SUPER_PARTITION_GROUPS := lge_dynamic_partitions
 BOARD_LGE_DYNAMIC_PARTITIONS_PARTITION_LIST := product system vendor
