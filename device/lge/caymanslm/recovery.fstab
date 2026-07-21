@@ -1,22 +1,33 @@
-# Android fstab for LG Velvet 4G (caymanslm).
-system                                             /system_root             ext4    ro,barrier=1,discard                                                wait,slotselect,logical,first_stage_mount
-product                                            /product                 ext4    ro,barrier=1,discard                                                wait,slotselect,logical,first_stage_mount
-vendor                                             /vendor                  ext4    ro,barrier=1,discard                                                wait,slotselect,logical,first_stage_mount
-/dev/block/bootdevice/by-name/userdata             /data                    f2fs    noatime,nosuid,nodev,discard,fsync_mode=nobarrier                    latemount,wait,check,formattable,fileencryption=ice,quota,reservedsize=128M,checkpoint=fs
-/dev/block/by-name/metadata                        /metadata                ext4    noatime,nosuid,nodev,discard                                        wait,formattable
-/dev/block/bootdevice/by-name/modem                /vendor/firmware_mnt     vfat    ro,shortname=lower,uid=1000,gid=1000,dmask=227,fmask=337            wait,slotselect
-/dev/block/bootdevice/by-name/dsp                  /vendor/dsp              ext4    ro,nosuid,nodev,barrier=1                                           wait,slotselect
-/dev/block/bootdevice/by-name/persist              /mnt/vendor/persist      ext4    nosuid,nodev,barrier=1,noatime,noauto_da_alloc,errors=continue       wait,check
-/dev/block/by-name/drm                             /mnt/vendor/persist-lg   ext4    nosuid,nodev,barrier=1,noauto_da_alloc                              wait,check
-/dev/block/bootdevice/by-name/p_persist_lg         /mnt/product/persist-lg  ext4    nosuid,nodev,barrier=1,noauto_da_alloc                              wait,check
-/dev/block/bootdevice/by-name/misc                 /misc                    emmc    defaults                                                           defaults
-/dev/block/bootdevice/by-name/ftm                  /ftm                     emmc    defaults                                                           defaults
-/dev/block/bootdevice/by-name/boot                 /boot                    emmc    defaults                                                           defaults,slotselect
-/dev/block/bootdevice/by-name/recovery             /recovery                emmc    defaults                                                           defaults,slotselect
-/dev/block/bootdevice/by-name/dtbo                 /dtbo                    emmc    defaults                                                           defaults,slotselect
-/dev/block/bootdevice/by-name/vbmeta               /vbmeta                  emmc    defaults                                                           defaults,slotselect
-/dev/block/bootdevice/by-name/modemst1             /modemst1                emmc    defaults                                                           defaults
-/dev/block/bootdevice/by-name/modemst2             /modemst2                emmc    defaults                                                           defaults
-/dev/block/bootdevice/by-name/fsg                  /fsg                     emmc    defaults                                                           defaults
-/devices/platform/soc/8804000.sdhci/mmc_host*      /external_sd             auto    defaults                                                           voldmanaged=external_sd:auto
-/devices/platform/soc/*.ssusb/*.dwc3/xhci-hcd.*    /usb_otg                 auto    defaults                                                           voldmanaged=usb:auto
+# TWRP/OrangeFox fstab for LG Velvet 4G (caymanslm, LM-G910EMW).
+# Dynamic A/B: system/product/vendor are logical inside super; slotselect picks
+# the active slot at runtime. Raw partitions are exposed for flashing/backup.
+#
+# Encryption: this device uses plain Qualcomm FBE (fileencryption=ice) with a
+# dedicated /metadata partition for key storage. It does NOT use metadata
+# encryption (dm-default-key) or wrapped keys — matches stock + LineageOS fstab.
+#
+# mount_point       fstype  device                                              flags
+
+# --- Logical (dynamic) system partitions, read-only, slot-selected ---
+/system_root        ext4    system                                              flags=logical;slotselect;display="System"
+/vendor             ext4    vendor                                              flags=logical;slotselect;display="Vendor"
+/product            ext4    product                                             flags=logical;slotselect;display="Product"
+
+# --- Userdata: Qualcomm FBE (ICE). Plain fileencryption, no metadata-encrypt. ---
+/data               f2fs    /dev/block/bootdevice/by-name/userdata              flags=fileencryption=ice;sysfs_path="/sys/devices/platform/soc/1d84000.ufshc";reservedsize=128M
+/metadata           ext4    /dev/block/bootdevice/by-name/metadata              flags=display="Metadata";backup=0
+
+# --- External storage / OTG (sysfs voldmanaged; sdcard is NOT internal sda) ---
+/external_sd        auto    /devices/platform/soc/8804000.sdhci/mmc_host*       flags=display="microSD";storage;wipeingui;removable;fsflags="nosuid,nodev"
+/usb_otg            auto    /devices/platform/soc/*.ssusb/*.dwc3/xhci-hcd.*.auto* flags=display="USB-OTG";storage;wipeingui;removable
+
+# --- Firmware (read-only, informational) ---
+/vendor/firmware_mnt vfat   /dev/block/bootdevice/by-name/modem                 flags=slotselect;display="Firmware";mounttodecrypt;backup=0
+
+# --- Raw / flashable partitions (backup + install targets) ---
+/boot               emmc    /dev/block/bootdevice/by-name/boot                  flags=slotselect;display="Boot";backup=1;flashimg=1
+/recovery           emmc    /dev/block/bootdevice/by-name/recovery              flags=slotselect;display="Recovery";backup=1;flashimg=1
+/dtbo               emmc    /dev/block/bootdevice/by-name/dtbo                   flags=slotselect;display="DTBO";backup=1;flashimg=1
+/vbmeta             emmc    /dev/block/bootdevice/by-name/vbmeta                 flags=slotselect;display="Vbmeta";backup=0;flashimg=1
+/vbmeta_system      emmc    /dev/block/bootdevice/by-name/vbmeta_system         flags=slotselect;display="Vbmeta System";backup=0;flashimg=1
+/misc               emmc    /dev/block/bootdevice/by-name/misc                  flags=display="Misc";backup=0

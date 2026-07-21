@@ -15,7 +15,6 @@ expensive builds automatically. A successful run uploads:
 - SHA-256 checksum
 - parsed boot-header details
 - parsed AVB footer details
-- OrangeFox installer ZIP when generated
 
 The workflow uses the official public OrangeFox sync helper with the
 `fox_12.1` branch. The first image is experimental and must not be written to

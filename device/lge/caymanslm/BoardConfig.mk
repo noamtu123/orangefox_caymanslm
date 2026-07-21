@@ -1,6 +1,21 @@
+#
+# BoardConfig.mk — OrangeFox (fox_14.1) recovery for LG Velvet 4G
+# caymanslm / LM-G910EMW / SDM845.
+#
+# Self-contained: values are copied from the hardware-validated LineageOS
+# lineage-22.2 tree (device/lge/caymanslm + device/lge/sdm845-common) and from
+# the user's own EDL/super dumps. We intentionally do NOT `include` the
+# LineageOS common BoardConfig — it pulls in LineageOS/CAF-only sepolicy and
+# compatibility-matrix repos absent from the OrangeFox manifest.
+#
+# Firmware target: A12 system / A11 vendor split (G91030a), keymaster @4.0.
+#
+
 DEVICE_PATH := device/lge/caymanslm
 
-# Architecture
+# -------------------------------------------------------------------------
+# Platform / architecture (from sdm845-common)
+# -------------------------------------------------------------------------
 TARGET_ARCH := arm64
 TARGET_ARCH_VARIANT := armv8-2a
 TARGET_CPU_ABI := arm64-v8a
@@ -15,101 +30,141 @@ TARGET_2ND_CPU_ABI2 := armeabi
 TARGET_2ND_CPU_VARIANT := generic
 TARGET_2ND_CPU_VARIANT_RUNTIME := kryo385
 
-# Platform
 TARGET_BOARD_PLATFORM := sdm845
+TARGET_BOARD_PLATFORM_GPU := qcom-adreno630
 TARGET_BOOTLOADER_BOARD_NAME := sdm845
 TARGET_NO_BOOTLOADER := true
-TARGET_USES_UEFI := true
+BOARD_VENDOR := lge
 BOARD_USES_QCOM_HARDWARE := true
-TARGET_USES_QCOM_BSP := true
 
-# A/B and dynamic partitions
+# Allow copying the bundled vendor ELF decrypt blobs via PRODUCT_COPY_FILES
+# (see device.mk). Same mechanism LineageOS/TheMuppets use for vendor blobs.
+BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES := true
+
+# -------------------------------------------------------------------------
+# A/B + dynamic partitions
+# -------------------------------------------------------------------------
 AB_OTA_UPDATER := true
-AB_OTA_PARTITIONS += boot dtbo product recovery system vendor vbmeta
+AB_OTA_PARTITIONS += boot dtbo product recovery system vbmeta vendor
 BOARD_USES_METADATA_PARTITION := true
 
-# Stock G91030a boot image geometry
-BOARD_BOOT_HEADER_VERSION := 2
+PRODUCT_USE_DYNAMIC_PARTITIONS := true
+BOARD_SUPER_PARTITION_SIZE := 21470642176
+BOARD_SUPER_PARTITION_GROUPS := lge_dynamic_partitions
+BOARD_LGE_DYNAMIC_PARTITIONS_PARTITION_LIST := product system vendor
+# super / 2 - 4 MiB overhead (matches LineageOS sizing)
+BOARD_LGE_DYNAMIC_PARTITIONS_SIZE := $(shell expr $(BOARD_SUPER_PARTITION_SIZE) / 2 - 4194304)
+
+BOARD_PRODUCTIMAGE_FILE_SYSTEM_TYPE := ext4
+BOARD_SYSTEMIMAGE_FILE_SYSTEM_TYPE := ext4
+BOARD_VENDORIMAGE_FILE_SYSTEM_TYPE := ext4
+TARGET_COPY_OUT_VENDOR := vendor
+TARGET_COPY_OUT_PRODUCT := product
+
+# -------------------------------------------------------------------------
+# Kernel — built from LineageOS source (the proven, BGRA-capable kernel)
+# -------------------------------------------------------------------------
+TARGET_KERNEL_SOURCE := kernel/lge/sdm845
+TARGET_KERNEL_CONFIG := lineageos_caymanslm_defconfig
+
 BOARD_KERNEL_BASE := 0x00000000
-BOARD_KERNEL_OFFSET := 0x00008000
-BOARD_RAMDISK_OFFSET := 0x01000000
-BOARD_SECOND_OFFSET := 0x00000000
-BOARD_TAGS_OFFSET := 0x00000100
-BOARD_DTB_OFFSET := 0x01f00000
 BOARD_KERNEL_PAGESIZE := 4096
 BOARD_KERNEL_IMAGE_NAME := Image.gz-dtb
 BOARD_KERNEL_SEPARATED_DTBO := true
-
-BOARD_KERNEL_CMDLINE := video=vfb:640x400,bpp=32,memsize=3072000
-BOARD_KERNEL_CMDLINE += msm_rtb.filter=0x237 ehci-hcd.park=3
-BOARD_KERNEL_CMDLINE += lpm_levels.sleep_disabled=1 service_locator.enable=1
-BOARD_KERNEL_CMDLINE += swiotlb=2048 androidboot.configfs=true loop.max_part=7
-BOARD_KERNEL_CMDLINE += androidboot.usbcontroller=a600000.dwc3
-BOARD_KERNEL_CMDLINE += androidboot.vendor.lge.arb_version=0
-BOARD_KERNEL_CMDLINE += androidboot.hardware=caymanslm
-
-TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/Image.gz-dtb
-TARGET_PREBUILT_DTB := $(DEVICE_PATH)/prebuilt/dtb.img
-BOARD_PREBUILT_DTBOIMAGE := $(DEVICE_PATH)/prebuilt/dtbo.img
 BOARD_INCLUDE_RECOVERY_DTBO := true
-BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOT_HEADER_VERSION)
-BOARD_MKBOOTIMG_ARGS += --dtb $(TARGET_PREBUILT_DTB)
 
-# Partition sizes from the EDL dumps
+# Clean LineageOS cmdline (matches the from-source kernel) + device suffixes.
+# NOTE: the stock `video=vfb...` cmdline belongs to the stock A11 kernel and is
+# deliberately NOT used here.
+BOARD_KERNEL_CMDLINE := msm_rtb.filter=0x237 ehci-hcd.park=3
+BOARD_KERNEL_CMDLINE += lpm_levels.sleep_disabled=1 service_locator.enable=1
+BOARD_KERNEL_CMDLINE += swiotlb=2048 androidboot.configfs=true
+BOARD_KERNEL_CMDLINE += androidboot.usbcontroller=a600000.dwc3
+BOARD_KERNEL_CMDLINE += loop.max_part=7
+BOARD_KERNEL_CMDLINE += androidboot.boot_devices=soc/1d84000.ufshc
+BOARD_KERNEL_CMDLINE += androidboot.hardware=caymanslm
+BOARD_KERNEL_CMDLINE += androidboot.fstab_suffix=caymanslm
+
+# Recovery boot-image geometry (header v2, offsets validated from stock recovery)
+BOARD_BOOT_HEADER_VERSION := 2
+BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOT_HEADER_VERSION)
+BOARD_MKBOOTIMG_ARGS += --ramdisk_offset 0x01000000
+BOARD_MKBOOTIMG_ARGS += --tags_offset 0x00000100
+
+# -------------------------------------------------------------------------
+# Partition sizes (from EDL dumps / LineageOS)
+# -------------------------------------------------------------------------
 BOARD_FLASH_BLOCK_SIZE := 262144
-BOARD_BOOTIMAGE_PARTITION_SIZE := 100663296
+BOARD_BOOTIMAGE_PARTITION_SIZE := 67108864
 BOARD_DTBOIMG_PARTITION_SIZE := 8388608
 BOARD_RECOVERYIMAGE_PARTITION_SIZE := 104857600
 
+# -------------------------------------------------------------------------
 # Filesystems
+# -------------------------------------------------------------------------
 TARGET_USERIMAGES_USE_EXT4 := true
 TARGET_USERIMAGES_USE_F2FS := true
-TARGET_COPY_OUT_VENDOR := vendor
-
-# Recovery
 BOARD_HAS_LARGE_FILESYSTEM := true
-BOARD_HAS_NO_SELECT_BUTTON := true
-BOOTLOADER_MESSAGE_OFFSET := 128
+
+# -------------------------------------------------------------------------
+# Recovery / display / input
+# -------------------------------------------------------------------------
+TARGET_RECOVERY_PIXEL_FORMAT := BGRA_8888
 TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/recovery.fstab
 TARGET_RECOVERY_QCOM_RTC_FIX := true
-TARGET_RECOVERY_PIXEL_FORMAT := BGRA_8888
+TARGET_SCREEN_DENSITY := 420
+BOARD_HAS_NO_SELECT_BUTTON := true
+
 TW_THEME := portrait_hdpi
 TW_SCREEN_BLANK_ON_BOOT := true
 TW_BRIGHTNESS_PATH := /sys/class/backlight/panel0-backlight/brightness
-TW_MAX_BRIGHTNESS := 255
-TW_DEFAULT_BRIGHTNESS := 130
+TW_MAX_BRIGHTNESS := 365
+TW_DEFAULT_BRIGHTNESS := 180
 TW_INPUT_BLACKLIST := hbtp_vm
-TW_EXCLUDE_DEFAULT_USB_INIT := true
-TW_INCLUDE_FASTBOOTD := true
-TW_INCLUDE_REPACKTOOLS := true
-TW_INCLUDE_RESETPROP := true
+TW_USE_TOOLBOX := true
 TW_EXTRA_LANGUAGES := true
+TW_INCLUDE_FASTBOOTD := true
+TW_INCLUDE_RESETPROP := true
 TW_HAS_EDL_MODE := true
-TW_IGNORE_MISC_WIPE_DATA := true
 RECOVERY_SDCARD_ON_DATA := true
 
-# Android 11/12 FBE with Qualcomm inline crypto
-PLATFORM_VERSION := 11.0.0
-PLATFORM_VERSION_LAST_STABLE := $(PLATFORM_VERSION)
-PLATFORM_SECURITY_PATCH := 2022-08-01
-VENDOR_SECURITY_PATCH := $(PLATFORM_SECURITY_PATCH)
+# USB: provide our own recovery USB configfs init (see rootdir).
+TW_EXCLUDE_DEFAULT_USB_INIT := true
+
+# MTP disabled for initial bring-up (ADB validated first, per handoff policy).
+TW_EXCLUDE_MTP := true
+
+# -------------------------------------------------------------------------
+# Crypto — Qualcomm FBE (keymaster @4.0 / gatekeeper @1.0 / qseecom @1.0)
+# The decrypt blob closure is bundled via recovery/root; fox_14.1 auto-detects
+# the keymaster version from the bundled vendor manifest.
+#
+# Device uses plain FBE (fileencryption=ice) — NOT metadata encryption — so
+# TW_INCLUDE_FBE_METADATA_DECRYPT is intentionally NOT set (matches stock+LOS).
+# PLATFORM_VERSION / PLATFORM_SECURITY_PATCH are intentionally left to the base
+# (Android 15) defaults; forcing them caused version/rollback conflicts.
+# -------------------------------------------------------------------------
 TW_INCLUDE_CRYPTO := true
 TW_INCLUDE_CRYPTO_FBE := true
-TW_INCLUDE_FBE_METADATA_DECRYPT := true
-BOARD_USES_QCOM_FBE_DECRYPTION := true
-TARGET_KEYMASTER_WAIT_FOR_QSEE := true
 
-# AVB footer generation; the unlocked bootloader can accept the build key.
+# Recovery sepolicy for the bundled crypto services.
+BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor
+
+# -------------------------------------------------------------------------
+# Verified Boot — device is unlocked for bring-up; recovery flashed to one slot.
+# -------------------------------------------------------------------------
 BOARD_AVB_ENABLE := true
 BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --flags 3
 
+# -------------------------------------------------------------------------
 # OrangeFox
-FOX_AB_DEVICE := 1
-FOX_BUILD_TYPE := Unofficial
-FOX_USE_TWRP_RECOVERY_IMAGE_BUILDER := 1
-FOX_RECOVERY_INSTALL_PARTITION := /dev/block/bootdevice/by-name/recovery
-FOX_USE_BASH_SHELL := 1
-FOX_USE_NANO_EDITOR := 1
-FOX_USE_TAR_BINARY := 1
-FOX_USE_ZSTD_BINARY := 1
-FOX_USE_LZ4_BINARY := 1
+# -------------------------------------------------------------------------
+OF_AB_DEVICE_WITH_RECOVERY_PARTITION := 1
+OF_USE_MAGISKBOOT := 1
+OF_USE_MAGISKBOOT_FOR_ALL_PATCHES := 1
+OF_NO_REFLASH_CURRENT_ORANGEFOX := 1
+OF_SCREEN_H := 2460
+OF_STATUS_H := 90
+OF_STATUS_INDENT_LEFT := 48
+OF_STATUS_INDENT_RIGHT := 48
+OF_ALLOW_DISABLE_NAVBAR := 0

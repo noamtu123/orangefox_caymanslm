@@ -1,7 +1,13 @@
-name: Build OrangeFox
+name: Build OrangeFox (fox_14.1)
 
+# Manual only. Never auto-triggered. Do not enable push/schedule triggers.
 on:
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: "FOX_BUILD_TYPE"
+        default: "Alpha"
+        required: true
 
 permissions:
   contents: read
@@ -13,23 +19,29 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 360
+    timeout-minutes: 420
 
     steps:
-      - name: Remove unused runner software
+      - name: Free up runner disk
         run: |
           sudo rm -rf \
-            /opt/az \
-            /opt/ghc \
-            /opt/hostedtoolcache \
-            /opt/microsoft \
-            /usr/local/julia* \
-            /usr/local/lib/android \
-            /usr/local/share/boost \
-            /usr/share/dotnet \
-            /usr/share/swift
-          sudo docker image prune --all --force
+            /opt/az /opt/ghc /opt/hostedtoolcache /opt/microsoft \
+            /usr/local/julia* /usr/local/lib/android /usr/local/share/boost \
+            /usr/share/dotnet /usr/share/swift /usr/local/.ghcup
+          sudo docker image prune --all --force || true
           df -h
+
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@fc881a613ad2a34aca9c9624518214ebc21dfc0c # v10
+        with:
+          root-reserve-mb: 2048
+          swap-size-mb: 4096
+          remove-android: 'true'
+          remove-codeql: 'true'
+          remove-dotnet: 'true'
+          remove-haskell: 'true'
+          remove-docker-images: 'true'
+          build-mount-path: /home/runner/work/build
 
       - name: Install build dependencies
         run: |
@@ -39,68 +51,76 @@ jobs:
             gcc-multilib git git-lfs gnupg gperf imagemagick \
             lib32readline-dev lib32z1-dev libelf-dev liblz4-tool \
             libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop \
-            pngcrush python-is-python3 rsync schedtool squashfs-tools \
-            xsltproc zip zlib1g-dev
+            pngcrush python-is-python3 python3 rsync schedtool \
+            squashfs-tools xsltproc zip zlib1g-dev
           sudo apt-get clean
           sudo curl -fsSL \
             https://storage.googleapis.com/git-repo-downloads/repo \
             -o /usr/local/bin/repo
           sudo chmod 0755 /usr/local/bin/repo
 
-      - name: Expand build storage
-        uses: easimon/maximize-build-space@c28619d8999a147d5e09c1199f84ff6af6ad5794
-        with:
-          root-reserve-mb: 1024
-          swap-size-mb: 2048
-          remove-android: true
-          remove-codeql: true
-          remove-dotnet: true
-          remove-haskell: true
-          remove-docker-images: true
-
       - name: Check out device tree
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: src
 
-      - name: Sync OrangeFox 12.1
+      - name: Sync OrangeFox fox_14.1 base
         env:
           FOX_SYNC_COMMIT: 11e4406b2bd1de939a26b6bfbad7e371cc3b1fa7
         run: |
-          mkdir -p fox
-          cd fox
-          repo init --depth=1 \
-            -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git \
-            -b twrp-12.1
-          mkdir -p .repo/local_manifests
-          cp "$GITHUB_WORKSPACE/.github/manifests/caymanslm-prune.xml" \
-            .repo/local_manifests/caymanslm-prune.xml
-          cd "$GITHUB_WORKSPACE"
-          git clone https://gitlab.com/OrangeFox/sync.git orangefox-sync
-          git -C orangefox-sync checkout "$FOX_SYNC_COMMIT"
-          cd orangefox-sync
-          ./orangefox_sync.sh \
-            --branch 12.1 \
-            --path "$GITHUB_WORKSPACE/fox"
-          du -sh "$GITHUB_WORKSPACE/fox"
+          FOX=/home/runner/work/build/fox
+          mkdir -p "$FOX"
+          git clone https://gitlab.com/OrangeFox/sync.git "$GITHUB_WORKSPACE/orangefox-sync"
+          git -C "$GITHUB_WORKSPACE/orangefox-sync" checkout "$FOX_SYNC_COMMIT"
+          # orangefox_sync.sh performs its own `repo init` (OFox manifest, which
+          # references the twrp-14.1 minimal manifest) followed by `repo sync`.
+          "$GITHUB_WORKSPACE/orangefox-sync/orangefox_sync.sh" \
+            --branch 14.1 --path "$FOX"
+          du -sh "$FOX" || true
+          df -h
+
+      - name: Add pinned LineageOS/vendor projects and sync
+        run: |
+          FOX=/home/runner/work/build/fox
+          mkdir -p "$FOX/.repo/local_manifests"
+          cp "$GITHUB_WORKSPACE/src/.github/manifests/caymanslm.xml" \
+            "$FOX/.repo/local_manifests/caymanslm.xml"
+          cd "$FOX"
+          repo sync -c -j"$(nproc)" --force-sync --no-clone-bundle --no-tags \
+            kernel/lge/sdm845 vendor/lge/caymanslm vendor/lge/sdm845-common
           df -h
 
       - name: Install caymanslm device tree
         run: |
-          mkdir -p fox/device/lge
-          cp -a device/lge/caymanslm fox/device/lge/caymanslm
+          FOX=/home/runner/work/build/fox
+          mkdir -p "$FOX/device/lge"
+          rm -rf "$FOX/device/lge/caymanslm"
+          cp -a "$GITHUB_WORKSPACE/src/device/lge/caymanslm" "$FOX/device/lge/caymanslm"
+
+      - name: Disk capacity gate (require >= 25 GiB free before build)
+        run: |
+          avail_kb=$(df --output=avail -k /home/runner/work/build | tail -1 | tr -d ' ')
+          avail_gib=$(( avail_kb / 1024 / 1024 ))
+          echo "Free after sync: ${avail_gib} GiB"
+          if [ "$avail_gib" -lt 25 ]; then
+            echo "::error::Insufficient free space (${avail_gib} GiB < 25 GiB). Aborting before build to avoid a false failure."
+            exit 1
+          fi
 
       - name: Build recovery
         shell: bash
         run: |
+          FOX=/home/runner/work/build/fox
           exec > >(tee "$GITHUB_WORKSPACE/build.log") 2>&1
           export ALLOW_MISSING_DEPENDENCIES=true
           export FOX_BUILD_DEVICE=caymanslm
-          export FOX_BUILD_TYPE=Alpha
+          export FOX_BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          export FOX_DISABLE_UPDATEZIP=1
           export LC_ALL=C
-          cd fox
+          cd "$FOX"
           set +e
           source build/envsetup.sh
           set -e
-          declare -F mka >/dev/null
           lunch twrp_caymanslm-eng
           mka adbd recoveryimage
 
@@ -108,20 +128,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          image=fox/out/target/product/caymanslm/recovery.img
+          FOX=/home/runner/work/build/fox
+          image="$FOX/out/target/product/caymanslm/recovery.img"
           test -f "$image"
           size=$(stat -c %s "$image")
+          echo "recovery.img size: $size"
           test "$size" -le 104857600
-          mkdir -p artifacts/unpacked
-          cp "$image" artifacts/recovery-caymanslm.img
-          sha256sum "$image" | tee artifacts/SHA256SUMS
-          python3 fox/system/tools/mkbootimg/unpack_bootimg.py \
+          mkdir -p "$GITHUB_WORKSPACE/artifacts/unpacked"
+          cp "$image" "$GITHUB_WORKSPACE/artifacts/recovery-caymanslm.img"
+          python3 "$FOX/system/tools/mkbootimg/unpack_bootimg.py" \
             --boot_img "$image" \
-            --out artifacts/unpacked \
-            --format mkbootimg | tee artifacts/boot-header.txt
-          python3 fox/external/avb/avbtool.py info_image \
-            --image "$image" | tee artifacts/avb-info.txt
-          cp fox/out/target/product/caymanslm/OrangeFox-*.zip artifacts/ 2>/dev/null || true
+            --out "$GITHUB_WORKSPACE/artifacts/unpacked" \
+            --format mkbootimg | tee "$GITHUB_WORKSPACE/artifacts/boot-header.txt"
+          grep -Fq -- "--header_version 2" "$GITHUB_WORKSPACE/artifacts/boot-header.txt"
+          # Confirm the bundled decrypt closure made it into the ramdisk
+          if [ -f "$FOX/out/target/product/caymanslm/recovery/root/vendor/bin/hw/android.hardware.keymaster@4.0-service-qti" ]; then
+            echo "keymaster@4.0 service present in ramdisk"
+          else
+            echo "::warning::keymaster@4.0 service not found in recovery ramdisk root"
+          fi
+          # Also copy any OrangeFox-named artifact if produced
+          cp "$FOX"/out/target/product/caymanslm/OrangeFox*.img \
+            "$GITHUB_WORKSPACE/artifacts/" 2>/dev/null || true
+          (cd "$GITHUB_WORKSPACE/artifacts" && sha256sum recovery-caymanslm.img > SHA256SUMS)
 
       - name: Upload recovery
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -135,11 +164,12 @@ jobs:
       - name: Collect diagnostics
         if: always()
         run: |
+          FOX=/home/runner/work/build/fox
           mkdir -p /tmp/diagnostics
-          cp build.log /tmp/diagnostics/ 2>/dev/null || true
+          cp "$GITHUB_WORKSPACE/build.log" /tmp/diagnostics/ 2>/dev/null || true
           df -h > /tmp/diagnostics/disk-usage.txt
-          if [ -d fox ]; then
-            (cd fox && repo manifest -r) > /tmp/diagnostics/pinned-manifest.xml 2>/dev/null || true
+          if [ -d "$FOX" ]; then
+            (cd "$FOX" && repo manifest -r) > /tmp/diagnostics/pinned-manifest.xml 2>/dev/null || true
           fi
 
       - name: Upload diagnostics

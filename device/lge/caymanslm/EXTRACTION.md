@@ -8,12 +8,20 @@ Source device: LG Velvet 4G LM-G910 (`caymanslm`).
 - Boot and recovery Android version: 11
 - Security patch: 2022-08-01
 - Boot header: version 2, 4096-byte pages
+- Base: `0x00000000`
+- Kernel offset: `0x00008000`
+- Ramdisk offset: `0x01000000`
+- Second offset: `0x00000000`
+- Tags offset: `0x00000100`
+- DTB offset: `0x01f00000`
 - Recovery partition: 104857600 bytes
 - Recovery payload before AVB footer: 28729344 bytes
 - Kernel: 14388050 bytes, gzip-compressed
 - DTB section: 1242145 bytes
 - Recovery DTBO section: 817661 bytes
 - Ramdisk: gzip-compressed
+- MinUI pixel format: `RGBX_8888`
+- Bootloader-message offset in `misc`: 0 bytes
 - Recovery payload SHA-256: `93c095f92f41728c4b59974e787935e31d280c4cb37bf1147d37e6e5469001ed`
 
 Repacking the extracted slot-A kernel, ramdisk, DTB, and recovery DTBO with the

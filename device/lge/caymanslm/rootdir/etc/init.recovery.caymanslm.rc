@@ -1,13 +1,15 @@
+import /init.recovery.qcom_decrypt.rc
+
 on early-init
     setprop sys.usb.configfs 1
 
 on init
-    write /sys/class/backlight/panel0-backlight/brightness 130
+    # ~50% of the panel's real max (365), not the old wrong 255-scale value
+    write /sys/class/backlight/panel0-backlight/brightness 180
 
 on property:ro.boot.usbcontroller=*
     setprop sys.usb.controller ${ro.boot.usbcontroller}
-    wait /sys/bus/platform/devices/${ro.boot.usb.dwc3_msm:-a600000.ssusb}/mode
-    write /sys/bus/platform/devices/${ro.boot.usb.dwc3_msm:-a600000.ssusb}/mode peripheral
+    write /sys/class/udc/${ro.boot.usbcontroller}/device/../mode peripheral
     wait /sys/class/udc/${ro.boot.usbcontroller} 1
 
 on fs
