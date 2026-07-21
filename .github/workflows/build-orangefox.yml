@@ -72,10 +72,11 @@ jobs:
           mkdir -p "$FOX"
           git clone https://gitlab.com/OrangeFox/sync.git "$GITHUB_WORKSPACE/orangefox-sync"
           git -C "$GITHUB_WORKSPACE/orangefox-sync" checkout "$FOX_SYNC_COMMIT"
-          # orangefox_sync.sh performs its own `repo init` (OFox manifest, which
-          # references the twrp-14.1 minimal manifest) followed by `repo sync`.
-          "$GITHUB_WORKSPACE/orangefox-sync/orangefox_sync.sh" \
-            --branch 14.1 --path "$FOX"
+          # orangefox_sync.sh resolves its patches/ dir relative to CWD, so it
+          # MUST be run from inside the sync checkout. It performs its own
+          # `repo init` (OFox manifest -> twrp-14.1 minimal manifest) + sync.
+          cd "$GITHUB_WORKSPACE/orangefox-sync"
+          ./orangefox_sync.sh --branch 14.1 --path "$FOX"
           du -sh "$FOX" || true
           df -h
 
