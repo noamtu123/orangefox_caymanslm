@@ -174,8 +174,50 @@ TW_INCLUDE_CRYPTO_FBE := true
 BOARD_USES_QCOM_DECRYPTION := true
 BOARD_USES_QCOM_FBE_DECRYPTION := true
 
+# Enabling the FBE decrypt path pulls libsysutils.so into the recovery binary's
+# NEEDED closure, but the base image doesn't ship it, so recovery aborts at load
+# with "library libsysutils.so not found" and init respawns it in a 5s crash
+# loop (blank screen). Force the module into the ramdisk by name (it has a
+# recovery variant upstream). NOTE: this OrangeFox base has NO
+# TW_RECOVERY_ADDITIONAL_RELINK_* handling — that mechanism is a no-op here, so
+# the module-name request below is what actually installs the library.
+TARGET_RECOVERY_DEVICE_MODULES += libsysutils
+
 # Recovery sepolicy for the bundled crypto services.
 BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor
+
+# -------------------------------------------------------------------------
+# Logging / diagnostics — ship logd + logcat in the recovery ramdisk.
+#
+# The base OrangeFox image strips the log daemon, so there is no logcat, no
+# logd, and native tombstones land on encrypted /data (unreadable). That makes
+# every runtime failure (e.g. a keystore2 Rust panic during FBE decrypt) a
+# black box. These two flags put logd + its init service and the logcat binary
+# into the ramdisk and route logging through logd, so `adb shell logcat` works
+# and crash_dump's "Abort message: ..." is readable on-device.
+#
+# NOTE: the guard in bootable/recovery/Android.mk is TWRP_INCLUDE_LOGCAT (full
+# "TWRP_" prefix), NOT the classic TW_INCLUDE_LOGCAT — the latter is a dead
+# variable in this OrangeFox base. With TARGET_USES_LOGD, this pulls in
+# logcat + logd + libsysutils + libnl + init.recovery.logd.rc.
+# -------------------------------------------------------------------------
+TWRP_INCLUDE_LOGCAT := true
+TARGET_USES_LOGD := true
+
+# strace + native crash capture in the ramdisk. strace gives syscall-level
+# tracing independent of whether logd is up; crash_dump64 + tombstoned turn
+# native aborts (logd, keystore2, ...) into readable tombstones.
+#
+# IMPORTANT: strace, crash_dump and tombstoned are NOT recovery_available
+# upstream, so soong SILENTLY skips them when requested by their plain module
+# name (they install to /system/bin, a partition recovery never mounts). Two
+# things are required, both in place:
+#   1. recovery_available:true in external/strace/Android.bp and
+#      system/core/debuggerd/Android.bp — applied by the CI "Patch OrangeFox
+#      source" step (WSL applies the same seds locally);
+#   2. request the .recovery-suffixed module names here.
+TARGET_RECOVERY_DEVICE_MODULES += strace.recovery
+TARGET_RECOVERY_DEVICE_MODULES += crash_dump.recovery tombstoned.recovery
 
 # -------------------------------------------------------------------------
 # Verified Boot — device is unlocked for bring-up; recovery flashed to one slot.

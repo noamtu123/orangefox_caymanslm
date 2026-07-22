@@ -15,3 +15,21 @@ on property:ro.boot.usbcontroller=*
 on fs
     wait /dev/block/platform/soc/${ro.boot.bootdevice}
     symlink /dev/block/platform/soc/${ro.boot.bootdevice} /dev/block/bootdevice
+
+# Native crash capture. The base tombstoned module ships its own
+# /system/etc/init/tombstoned.rc, but recovery init never imports it and its
+# service has no start trigger, so it never runs. Define + start it here. With
+# crash_dump64 in the ramdisk (see BoardConfig crash_dump.recovery), this makes
+# native aborts (logd, keystore2, ...) produce tombstones. Read them by shadowing
+# encrypted /data/tombstones with a tmpfs bind-mount at runtime.
+on init
+    start tombstoned
+
+service tombstoned /system/bin/tombstoned
+    class core
+    user root
+    group root system
+    socket tombstoned_crash seqpacket 0666 root root
+    socket tombstoned_intercept seqpacket 0666 root root
+    socket tombstoned_java_trace seqpacket 0666 root root
+    seclabel u:r:recovery:s0

@@ -120,6 +120,87 @@ jobs:
           else
             echo "partitionmanager.cpp already includes android_filesystem_config.h — skipping"
           fi
+          # fox_14.1: the recovery init.recovery.logd.rc declares only the
+          # logdr/logdw sockets. Stock logd.rc also declares the "logd" control
+          # socket; logd binds all three at startup and dies without it, so the
+          # service crash-loops every 5s and logd.ready is never set (logcat
+          # unusable). Add the missing control socket. Idempotent.
+          lrc=$(grep -rl 'socket logdw dgram' "$FOX/bootable/recovery" 2>/dev/null | head -1)
+          if [ -n "$lrc" ] && ! grep -q 'socket logd stream' "$lrc"; then
+            sed -i '/socket logdr seqpacket/i\    socket logd stream 0666 root root' "$lrc"
+            echo "Patched logd control socket into $lrc"
+          else
+            echo "logd rc already has control socket (or rc not found: '$lrc') — skipping"
+          fi
+          # strace is not recovery_available upstream, so soong silently skips
+          # it when TARGET_RECOVERY_DEVICE_MODULES asks for it in the ramdisk.
+          # Mark it recovery_available so the debug kit (logd/logcat/strace)
+          # is complete in the image. Idempotent.
+          bp="$FOX/external/strace/Android.bp"
+          if [ -f "$bp" ] && ! grep -q 'recovery_available' "$bp"; then
+            sed -i '/name: "strace",/a\    recovery_available: true,' "$bp"
+            echo "Patched recovery_available into external/strace"
+          else
+            echo "strace already recovery_available (or Android.bp missing) — skipping"
+          fi
+          # crash_dump + tombstoned are likewise not recovery_available upstream;
+          # mark them so the crash-capture layer lands in the ramdisk (requested
+          # as crash_dump.recovery / tombstoned.recovery in BoardConfig.mk). Idempotent.
+          dbp="$FOX/system/core/debuggerd/Android.bp"
+          if [ -f "$dbp" ]; then
+            grep -A3 'name: "crash_dump",' "$dbp" | grep -q recovery_available || \
+              sed -i '/name: "crash_dump",/a\    recovery_available: true,' "$dbp"
+            grep -A3 'name: "tombstoned",' "$dbp" | grep -q recovery_available || \
+              sed -i '/name: "tombstoned",/a\    recovery_available: true,' "$dbp"
+            echo "Ensured recovery_available on crash_dump + tombstoned"
+          else
+            echo "debuggerd Android.bp not found at $dbp — skipping"
+          fi
+          # logd's DropPrivs() calls set_sched_policy(0, SP_BACKGROUND) and treats
+          # failure as FATAL. In recovery there is no /etc/task_profiles.json and
+          # cgroups aren't mounted, so it ALWAYS fails -> logd aborts at startup in
+          # a 5s crash loop and logcat never becomes usable. logd doesn't need
+          # background scheduling in recovery; make that one failure non-fatal.
+          # (Confirmed via symbolized tombstone: system/logging/logd/main.cpp:78.)
+          # Idempotent.
+          lmain="$FOX/system/logging/logd/main.cpp"
+          if [ -f "$lmain" ] && grep -q 'PLOG(FATAL) << "failed to set background scheduling policy"' "$lmain"; then
+            sed -i 's/PLOG(FATAL) << "failed to set background scheduling policy"/PLOG(ERROR) << "failed to set background scheduling policy (non-fatal in recovery)"/' "$lmain"
+            echo "Patched logd set_sched_policy FATAL -> ERROR"
+          else
+            echo "logd main.cpp already patched (or not found) — skipping"
+          fi
+          # keystore2's IKeystoreService is @VintfStability. servicemanager's
+          # meetsDeclarationRequirements() requires such services to be declared
+          # in a framework VINTF manifest, which recovery has none of (logs
+          # "NULL VINTF MANIFEST!: framework"). So keystore2's add_service returns
+          # UNKNOWN_ERROR -> it panics at keystore2_main.rs:106 -> crash-loops ->
+          # FBE decrypt never happens. VINTF-stability enforcement is meaningless
+          # in recovery; make the add-gate declaration check pass (only the :298
+          # occurrence inside meetsDeclarationRequirements; the client-query path
+          # that uses '*outReturn = isVintfDeclared(name);' is untouched). Idempotent.
+          sm="$FOX/frameworks/native/cmds/servicemanager/ServiceManager.cpp"
+          if [ -f "$sm" ] && grep -q 'return isVintfDeclared(name);' "$sm"; then
+            # (void)name keeps the now-unused param from tripping -Werror=unused-parameter.
+            sed -i 's|return isVintfDeclared(name);|(void)name; return true; // recovery: skip VINTF-stability declaration (no framework manifest)|' "$sm"
+            echo "Patched servicemanager meetsDeclarationRequirements -> true"
+          else
+            echo "servicemanager already patched (or not found) — skipping"
+          fi
+          # TWRP's Decrypt_DE() retry loop (partition.cpp) retries only 3 times
+          # with a 2ms sleep -- it gives up in ~5ms. But keystore2 (needed for the
+          # fscrypt DE-key install) doesn't finish registering until ~5s into boot
+          # on this device (it crash-loops until keymaster+servicemanager are up),
+          # so the no-PIN auto-decrypt always misses it and /data stays encrypted.
+          # Widen the retry window to ~30s so decrypt waits for keystore2. Idempotent.
+          pc="$FOX/bootable/recovery/partition.cpp"
+          if [ -f "$pc" ] && grep -q 'int retry_count = 3;' "$pc"; then
+            sed -i 's/int retry_count = 3;/int retry_count = 30;/' "$pc"
+            sed -i '/Decrypt_DE() && --retry_count/{n;s/usleep(2000);/usleep(1000000);/}' "$pc"
+            echo "Widened Decrypt_DE retry window for keystore2 startup"
+          else
+            echo "partition.cpp Decrypt_DE retry already patched (or not found) — skipping"
+          fi
 
       - name: Disk capacity gate (require >= 25 GiB free before build)
         run: |
