@@ -29,3 +29,8 @@ f0aba1daa3e5d874d2b4774a16fe038587d44041f7ea8dccb229d9b1d48bdc90 14976        /l
 110dd79147fa6d6bdf7d09f9c64279909474d84d8c749908012d6d7e5f9dc210 18928        /lib64/libqcbor.so -> /vendor/lib64/libqcbor.so
 d1f2a5a4ea06e4b9a47f1a49db8203a6cca6ab6e7ce42e871ec8095a0d0ae765 241088       /lib64/libdiag.so -> /vendor/lib64/libdiag.so
 f1d37cdd3985f797b9a8f37679eb6e2bff920dea1ff74c361cc01af4ef77d3bc 40296        /lib64/libdrmfs.so -> /vendor/lib64/libdrmfs.so
+# qseecomd runtime dlopen() plugins (NOT in any ELF DT_NEEDED closure — added
+# after on-device proof 2026-07-22 that their absence kills the whole crypto
+# chain; see device.mk comment). Pulled from this device's live stock vendor.
+c7760654b8e981d3e7f89ec190227555cebc22bdb62f061fc21cabfa8239dbca 45592        /lib64/librpmb.so -> /vendor/lib64/librpmb.so
+59648e71f10cdf6e620b9132fbd70fdb4980314d6d182ead4df721e44bc3d766 10768        /lib64/libssd.so -> /vendor/lib64/libssd.so

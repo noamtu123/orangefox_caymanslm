@@ -46,6 +46,20 @@ PRODUCT_PACKAGES += \
 # correctly-sequenced service definitions (qseecomd on the crypto.ready/
 # listeners chain, keymaster/gatekeeper gated on listeners-registered).
 #
+# librpmb.so + libssd.so are qseecomd RUNTIME dlopen() plugins, NOT part of any
+# binary's ELF DT_NEEDED closure — so the static closure verification that
+# selected the other blobs silently missed them. Proven on-device (2026-07-22):
+# without librpmb.so, qseecomd's RPMB_INIT fails ("Init dlopen(librpmb.so)
+# failed ... shall not start listener services") -> qseecomd exits ->
+# vendor.sys.listeners.registered never becomes true -> keymaster@4.0 never
+# starts -> keystore2 aborts (HARDWARE_TYPE_UNAVAILABLE / "Cannot connect to
+# Keymint") -> FBE decrypt cannot run. Copying just these two into the ramdisk
+# and restarting qseecomd brought the whole chain up + "Successfully registered
+# Keystore 2.0 service". These are the minimal proven pair; libssd (secure
+# storage daemon) pairs with rpmb for the trustlet's replay-protected storage.
+# Other qseecomd dlopen plugins (libsecureui/libdrmtime/libGPreqcancel/libops)
+# stay absent on purpose — qseecomd logs them as optional and keeps running.
+#
 # Copying ELF prebuilts via PRODUCT_COPY_FILES requires the BUILD_BROKEN flag
 # set in BoardConfig.mk (BUILD_BROKEN_ELF_PREBUILT_PRODUCT_COPY_FILES) — the same
 # mechanism LineageOS/TheMuppets use for vendor blobs.
@@ -65,4 +79,6 @@ PRODUCT_COPY_FILES += \
     $(RECOVERY_ROOT)/vendor/lib64/libqcbor.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/libqcbor.so \
     $(RECOVERY_ROOT)/vendor/lib64/libdiag.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/libdiag.so \
     $(RECOVERY_ROOT)/vendor/lib64/libdrmfs.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/libdrmfs.so \
+    $(RECOVERY_ROOT)/vendor/lib64/librpmb.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/librpmb.so \
+    $(RECOVERY_ROOT)/vendor/lib64/libssd.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/libssd.so \
     $(RECOVERY_ROOT)/vendor/etc/vintf/manifest/android.hardware.keymaster_gatekeeper_caymanslm.xml:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/etc/vintf/manifest/android.hardware.keymaster_gatekeeper_caymanslm.xml
