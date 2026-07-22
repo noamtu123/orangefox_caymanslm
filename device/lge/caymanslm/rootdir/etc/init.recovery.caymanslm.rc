@@ -4,6 +4,17 @@ on early-init
     setprop sys.usb.configfs 1
 
 on init
+    # Force prepdecrypt to set OS version + security-patch level from the
+    # INSTALLED ROM's system/vendor build.prop instead of leaving recovery's own.
+    # This device has a dedicated recovery partition, so prepdecrypt.sh defaults
+    # SETPATCH=false and never corrects the patchlevel; keymaster then boots with
+    # recovery's wrong values (os=11, patch=2024-09-05, vendor=empty->0) and
+    # rejects the stock FBE key's upgradeKey() with INVALID_ARGUMENT (-38),
+    # blocking decrypt. Setting this prop here (before prepdecrypt runs, and it
+    # runs before crypto.ready gates keymaster) makes prepdecrypt mount the stock
+    # partitions and resetprop the real values (os=12, patch/vendor=2022-08-01),
+    # so the key needs no upgrade and unwraps. Proven on-device 2026-07-22.
+    setprop prepdecrypt.setpatch true
     # ~50% of the panel's real max (365), not the old wrong 255-scale value
     write /sys/class/backlight/panel0-backlight/brightness 180
 
