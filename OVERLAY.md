@@ -16,7 +16,6 @@ sync run `./apply-fixes.sh` (in the repo root), which copies `overlay/` over `~/
 | `bootable/recovery/partition.cpp` | widen `Decrypt_DE` retry window (service-startup timing) |
 | `bootable/recovery/partitionmanager.cpp` | include `android_filesystem_config.h` for `AID_MEDIA_RW` (compile fix) |
 | `bootable/recovery/etc/init.recovery.logd.rc` | add logd control socket |
+| `system/vold/*` (KeyUtil.cpp, FsCrypt.cpp, Decrypt.cpp, KeystoreInfo.cpp, Weaver1.*, Android.bp) | **FBE decrypt**: legacy Qualcomm ICE fscrypt `installKeyLegacy` + ENOTTY fallback + synthetic `/data` fstab entry |
 
-**Not here:** `system/vold` (the big FBE decrypt change, `installKeyLegacy`) — it comes
-from the fork `noamtu123/android_system_vold@caymanslm-fbe` via the `local_manifest`,
-so `repo sync` pulls it automatically.
+Everything is here — there are **no forks**. `apply-fixes.sh` restores all of it after a sync.

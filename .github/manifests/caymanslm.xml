@@ -36,15 +36,7 @@
              revision="efa8458f79dffeb380d43b38b9403407f87d9f05"
              upstream="refs/heads/lineage-22.2" />
 
-    <!-- Our forks of upstream repos carrying caymanslm fixes. Keeps the fixes
-         in git (survive `repo sync`) instead of runtime sed patches. -->
-    <remote name="noamtu" fetch="https://github.com/noamtu123" />
-
-    <!-- system/vold: legacy Qualcomm ICE fscrypt FBE decrypt (installKeyLegacy +
-         ENOTTY fallback) + synthetic /data fstab entry. Replaces nebrassy's vold. -->
-    <remove-project name="android_system_vold" />
-    <project name="android_system_vold"
-             path="system/vold"
-             remote="noamtu"
-             revision="caymanslm-fbe" />
+    <!-- No upstream-repo overrides. All caymanslm fixes to upstream repos
+         (including system/vold's FBE decrypt) live as whole-file overlays in
+         overlay/ and are applied to the tree by apply-fixes.sh after repo sync. -->
 </manifest>
