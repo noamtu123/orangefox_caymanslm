@@ -1,0 +1,21 @@
+diff --git a/twrp.cpp b/twrp.cpp
+index c9fdc572..00000000 100644
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -417,6 +417,15 @@ static bool Fox_CheckReload_Themes() {
+ #if defined(FOX_ALLOW_EARLY_SETTINGS_LOAD) && defined(FOX_SETTINGS_ROOT_DIRECTORY)
+   return false;
+ #else
+-  return (TWFunc::Path_Exists(FOX_THEME_PATH) || TWFunc::Path_Exists(FOX_NAVBAR_PATH));
++  // Empty .theme/.navbar directories are created by the default settings
++  // setup. Reloading for those empty directories makes an encrypted boot parse
++  // the complete UI twice: once after DE unlock, then again for no change.
++  // Only reload when a real custom asset (or full ui.zip theme) exists.
++  const std::string settings_path = DataManager::GetSettingsStoragePath();
++  return TWFunc::Path_Exists(settings_path + "/theme/ui.zip") ||
++         TWFunc::Path_Exists(FOX_THEME_PATH + "/font.xml") ||
++         TWFunc::Path_Exists(FOX_THEME_PATH + "/style.xml") ||
++         TWFunc::Path_Exists(FOX_THEME_PATH + "/accent.xml") ||
++         TWFunc::Path_Exists(FOX_NAVBAR_PATH + "/navbar.xml");
+ #endif
+ }
