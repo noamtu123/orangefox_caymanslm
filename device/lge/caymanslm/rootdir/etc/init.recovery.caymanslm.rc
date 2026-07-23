@@ -54,10 +54,6 @@ on fs
     # waiting for qseecomd, Keymaster and Keystore2 to appear.
     setprop ro.crypto.state encrypted
     setprop ro.crypto.type file
-    # caymanslm uses the bundled Qualcomm Keymaster 4.x HAL. Publishing this
-    # before recovery parses the vendor manifest lets the listener trigger
-    # start it in parallel with the splash/partition setup.
-    setprop keymaster_ver 4.x
 
 # Native crash capture. The base tombstoned module ships its own
 # /system/etc/init/tombstoned.rc, but recovery init never imports it and its
