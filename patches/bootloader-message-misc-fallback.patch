@@ -1,0 +1,47 @@
+diff --git a/bootloader_message/bootloader_message.cpp b/bootloader_message/bootloader_message.cpp
+index 76f3ec17..4c171143 100644
+--- a/bootloader_message/bootloader_message.cpp
++++ b/bootloader_message/bootloader_message.cpp
+@@ -18,6 +18,7 @@
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <string.h>
++#include <unistd.h>
+ 
+ #include <optional>
+ #include <string>
+@@ -48,17 +48,26 @@ std::string get_misc_blk_device(std::string* err) {
+     return *g_misc_device_for_test;
+   }
+   Fstab fstab;
+-  if (!ReadDefaultFstab(&fstab)) {
+-    *err = "failed to read default fstab";
+-    return "";
+-  }
+-  for (const auto& entry : fstab) {
+-    if (entry.mount_point == "/misc") {
+-      return entry.blk_device;
++  if (ReadDefaultFstab(&fstab)) {
++    for (const auto& entry : fstab) {
++      if (entry.mount_point == "/misc") {
++        return entry.blk_device;
++      }
+     }
+   }
+ 
+-  *err = "failed to find /misc partition";
++  // Recovery's /etc/recovery.fstab uses TWRP's four-column format, which
++  // Android fs_mgr intentionally rejects. Dedicated-recovery Qualcomm/LG
++  // devices still expose the canonical by-name link, so use it as a recovery
++  // fallback. This lets init and OrangeFox clear/write the BCB and prevents a
++  // stale boot-recovery command from trapping every reboot in recovery.
++  const std::string fallback = "/dev/block/bootdevice/by-name/misc";
++  if (access(fallback.c_str(), F_OK) == 0) {
++    err->clear();
++    return fallback;
++  }
++
++  *err = "failed to find /misc partition in fstab or by-name";
+   return "";
+ }
+ 

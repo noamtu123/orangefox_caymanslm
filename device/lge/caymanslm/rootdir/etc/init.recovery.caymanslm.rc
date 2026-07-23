@@ -4,6 +4,13 @@ on early-init
     setprop sys.usb.configfs 1
 
 on init
+    # TWRP's partition manager only resolves top-level mount points. Mount the
+    # partition as /persist and retain Qualcomm/LG's expected vendor path as a
+    # symlink for qseecomd, keymaster, DRM, and time-services clients.
+    mkdir /persist 0771 root system
+    mkdir /mnt/vendor 0755 root root
+    symlink /persist /mnt/vendor/persist
+
     # Force prepdecrypt to set OS version + security-patch level from the
     # INSTALLED ROM's system/vendor build.prop instead of leaving recovery's own.
     # This device has a dedicated recovery partition, so prepdecrypt.sh defaults
@@ -22,6 +29,12 @@ on property:ro.boot.usbcontroller=*
     setprop sys.usb.controller ${ro.boot.usbcontroller}
     write /sys/class/udc/${ro.boot.usbcontroller}/device/../mode peripheral
     wait /sys/class/udc/${ro.boot.usbcontroller} 1
+
+# Migrate the old OrangeFox default saved by earlier builds. Fresh installs
+# already use OF_DEFAULT_TIMEZONE; this exact trigger preserves any other
+# timezone the user deliberately selects.
+on property:persist.sys.timezone=CET-1;CEST,M3.5.0,M10.5.0
+    setprop persist.sys.timezone IST-2IDT,M3.4.4/26,M10.5.0
 
 on fs
     wait /dev/block/platform/soc/${ro.boot.bootdevice}

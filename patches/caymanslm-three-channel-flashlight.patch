@@ -1,0 +1,85 @@
+diff --git a/data.cpp b/data.cpp
+index 7ca8d86b..8d78fdb1 100755
+--- a/data.cpp
++++ b/data.cpp
+@@ -863,6 +863,7 @@ void DataManager::SetDefaultValues()
+     if ((string)OF_FLASHLIGHT_ENABLE == "1") {
+       mConst.SetValue("of_fl_path_1", OF_FL_PATH1);
+       mConst.SetValue("of_fl_path_2", OF_FL_PATH2);
++      mConst.SetValue("of_fl_path_3", OF_FL_PATH3);
+       mData.SetValue("of_flash_on", "0");
+     }
+   #endif
+diff --git a/gui/action.cpp b/gui/action.cpp
+index 42e30797..ea722f7b 100755
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -2569,16 +2569,17 @@ int GUIAction::flashlightImpl(std::string arg __unused)
+     string enable_flash;
+     DataManager::GetValue(OF_FLASHLIGHT_ENABLE_STR, enable_flash);
+     if (enable_flash == "1") {
+-		std::string path_one, path_two,
+-					fl_one_on, fl_two_on,
+-					max_one, max_two,
+-					bright_one, bright_two,
+-					max_brt_one, max_brt_two,
++		std::string path_one, path_two, path_three,
++					fl_one_on, fl_two_on, fl_three_on,
++					max_one, max_two, max_three,
++					bright_one, bright_two, bright_three,
++					max_brt_one, max_brt_two, max_brt_three,
+ 					fl_used;
+ 		
+ 		// get maintainer flash files
+ 		DataManager::GetValue("of_fl_path_1", path_one);
+ 		DataManager::GetValue("of_fl_path_2", path_two);
++		DataManager::GetValue("of_fl_path_3", path_three);
+ 		DataManager::GetValue("of_flash_on", fl_used);
+ 		
+ 		if (path_one.empty() && path_two.empty()) {
+@@ -2635,7 +2636,27 @@ int GUIAction::flashlightImpl(std::string arg __unused)
+           DataManager::SetValue("of_flash_on", "1");
+ 				} else {
+ 					TWFunc::write_to_file(bright_two, "0");
+-          DataManager::SetValue("of_flash_on", "0");
++					DataManager::SetValue("of_flash_on", "0");
++				}
++			}
++		}
++
++		if (!path_three.empty()) {
++			bright_three = path_three + "/brightness";
++			max_three = path_three + "/max_brightness";
++			if (TWFunc::Path_Exists(bright_three)) {
++				if (!TWFunc::Path_Exists(max_three)) {
++					max_brt_three = "1";
++				} else {
++					TWFunc::read_file(max_three, max_brt_three);
++				}
++				TWFunc::read_file(bright_three, fl_three_on);
++				if ((fl_three_on == "0" && fl_one_on == "0" && fl_two_on == "0") || fl_used == "0") {
++					TWFunc::write_to_file(bright_three, max_brt_three);
++					DataManager::SetValue("of_flash_on", "1");
++				} else {
++					TWFunc::write_to_file(bright_three, "0");
++					DataManager::SetValue("of_flash_on", "0");
+ 				}
+ 			}
+ 		}
+diff --git a/orangefox.mk b/orangefox.mk
+index 1f02b296..041963a4 100644
+--- a/orangefox.mk
++++ b/orangefox.mk
+@@ -287,6 +287,12 @@ else
+     LOCAL_CFLAGS += -DOF_FL_PATH2='""'
+ endif
+ 
++ifneq ($(OF_FL_PATH3),)
++    LOCAL_CFLAGS += -DOF_FL_PATH3='"$(OF_FL_PATH3)"'
++else
++    LOCAL_CFLAGS += -DOF_FL_PATH3='""'
++endif
++
+ ifeq ($(OF_SKIP_FBE_DECRYPTION),1)
+     LOCAL_CFLAGS += -DOF_SKIP_FBE_DECRYPTION='"1"'
+ endif

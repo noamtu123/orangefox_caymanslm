@@ -103,6 +103,11 @@ BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOT_HEADER_VERSION)
 BOARD_MKBOOTIMG_ARGS += --ramdisk_offset 0x01000000
 BOARD_MKBOOTIMG_ARGS += --tags_offset 0x00000100
 
+# Ramdisk compression: LZMA shrinks the (currently bloated) recovery ramdisk
+# well below the stock ~28 MB baseline. Paired with OF_USE_LZMA_COMPRESSION in
+# the OrangeFox section. The from-source kernel has LZMA support built in.
+BOARD_RAMDISK_USE_LZMA := true
+
 # -------------------------------------------------------------------------
 # Partition sizes (from EDL dumps / LineageOS)
 # -------------------------------------------------------------------------
@@ -125,6 +130,8 @@ BOARD_HAS_LARGE_FILESYSTEM := true
 # -------------------------------------------------------------------------
 TARGET_RECOVERY_PIXEL_FORMAT := BGRA_8888
 TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/recovery.fstab
+# This device keeps its valid time-of-day offset in /persist/time/ats_2.
+# twrp-functions.cpp includes that directory in its ATS search.
 TARGET_RECOVERY_QCOM_RTC_FIX := true
 TARGET_SCREEN_DENSITY := 420
 BOARD_HAS_NO_SELECT_BUTTON := true
@@ -141,6 +148,15 @@ TW_INCLUDE_FASTBOOTD := true
 TW_INCLUDE_RESETPROP := true
 TW_HAS_EDL_MODE := true
 RECOVERY_SDCARD_ON_DATA := true
+
+# Battery: read the real fuel-gauge node (probed readable on-device). Without an
+# explicit path the health-service lookup fails and the status bar shows "!".
+TW_CUSTOM_BATTERY_PATH := /sys/class/power_supply/battery
+
+# Vibration: this device's vibrator is the Immersion tspdrv driver (/dev/tspdrv
+# exists on-device), NOT a timed_output / qpnp-haptics node. This flag routes
+# TWRP/OrangeFox haptics through the tspdrv ioctl path.
+TW_HAPTICS_TSPDRV := true
 
 # USB: provide our own recovery USB configfs init (see rootdir).
 TW_EXCLUDE_DEFAULT_USB_INIT := true
@@ -237,3 +253,22 @@ OF_STATUS_H := 90
 OF_STATUS_INDENT_LEFT := 48
 OF_STATUS_INDENT_RIGHT := 48
 OF_ALLOW_DISABLE_NAVBAR := 0
+
+# Flashlight: the rear LED requires both torch channels to be configured before
+# the shared switch is enabled. OrangeFox applies these paths in numeric order
+# and appends /brightness + /max_brightness itself.
+OF_FLASHLIGHT_ENABLE := 1
+OF_FL_PATH1 := /sys/class/leds/led:torch_0
+OF_FL_PATH2 := /sys/class/leds/led:torch_1
+OF_FL_PATH3 := /sys/class/leds/led:switch_0
+
+# Battery: use the legacy polling services (OrangeFox doc: for status-bar % that
+# misreads, e.g. stuck at 100%/"!"), alongside TW_CUSTOM_BATTERY_PATH above.
+OF_USE_LEGACY_BATTERY_SERVICES := 1
+
+# Ramdisk size: enable LZMA compression (pairs with BOARD_RAMDISK_USE_LZMA).
+OF_USE_LZMA_COMPRESSION := 1
+
+# Boot speed: don't re-run the whole startup process after decryption succeeds
+# (trims several seconds off the OrangeFox-logo wait).
+OF_NO_RELOAD_AFTER_DECRYPTION := 1

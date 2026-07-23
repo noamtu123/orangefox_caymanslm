@@ -26,9 +26,16 @@
 # --- Firmware / vendor partitions needed by the QSEE crypto stack ---
 # persist + dsp are mounttodecrypt: qseecomd/keymaster on LG SDM845 touch them
 # while bringing up TZ listeners for FBE. Matches the LineageOS fstab set.
-/vendor/firmware_mnt vfat   /dev/block/bootdevice/by-name/modem                 flags=slotselect;display="Firmware";mounttodecrypt;backup=0
-/mnt/vendor/persist ext4    /dev/block/bootdevice/by-name/persist               flags=display="Persist";mounttodecrypt;backup=0
-/vendor/dsp         ext4    /dev/block/bootdevice/by-name/dsp                   flags=slotselect;display="DSP";mounttodecrypt;backup=0
+#
+# firmware_mnt + dsp mount at TOP-LEVEL paths (not nested under /vendor). When
+# they were /vendor/firmware_mnt and /vendor/dsp, they sat *inside* the /vendor
+# mount, so the GUI Mount/Unmount cascaded across /vendor + firmware + dsp
+# (mount one -> all mount; unmount one -> all unmount). Nothing in this tree
+# references the old /vendor/* paths (grep-verified), and the block devices are
+# unchanged, so mounttodecrypt still works — they're just no longer nested.
+/firmware_mnt       vfat    /dev/block/bootdevice/by-name/modem                 flags=slotselect;display="Firmware";mounttodecrypt;backup=0
+/persist            ext4    /dev/block/bootdevice/by-name/persist               flags=display="Persist";mounttodecrypt;backup=0
+/dsp                ext4    /dev/block/bootdevice/by-name/dsp                   flags=slotselect;display="DSP";mounttodecrypt;backup=0
 
 # --- Raw / flashable partitions (backup + install targets) ---
 /boot               emmc    /dev/block/bootdevice/by-name/boot                  flags=slotselect;display="Boot";backup=1;flashimg=1

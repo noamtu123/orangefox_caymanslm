@@ -1,0 +1,22 @@
+diff --git a/twrp.cpp b/twrp.cpp
+index 10e3d6a0..e5f8f384 100644
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -269,6 +269,17 @@ int main(int argc, char **argv) {
+ #ifndef FOX_ALLOW_EARLY_SETTINGS_LOAD
+ 	DataManager::ReadSettingsFile();
+ #endif
++
++	// Migrate the Central-European default saved by the earlier device builds.
++	// The recovery ramdisk has no tzdata, but bionic accepts this POSIX rule.
++	// Keep any timezone a user explicitly chose; only replace the old default.
++	if (DataManager::GetStrValue(TW_TIME_ZONE_VAR) == "CET-1;CEST,M3.5.0,M10.5.0") {
++		DataManager::SetValue(TW_TIME_ZONE_VAR, "IST-2IDT,M3.4.4/26,M10.5.0", 1);
++		DataManager::SetValue(TW_TIME_ZONE_GUISEL, "IST-2IDT,M3.4.4/26,M10.5.0", 1);
++	}
++	DataManager::SetValue(TW_MILITARY_TIME, 1, 1);
++	DataManager::update_tz_environment_variables();
++	DataManager::Flush();
+ 
+ 	// Run any outstanding OpenRecoveryScript
+ 	std::string cacheDir = TWFunc::get_log_dir();

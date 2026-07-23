@@ -169,7 +169,7 @@ static bool installKeyLegacy(const KeyBuffer& key, const std::string& raw_ref) {
             PLOG(ERROR) << "Failed to insert key " << ref << " into keyring " << device_keyring;
             return false;
         }
-        LOG(ERROR) << "DBG Installed legacy fscrypt key " << key_id << " (" << ref << ") to keyring "
+        LOG(DEBUG) << "Installed legacy fscrypt key " << key_id << " (" << ref << ") to keyring "
                    << device_keyring;
     }
     return true;
@@ -225,8 +225,6 @@ bool installKey(const std::string& mountpoint, const EncryptionOptions& options,
                 const KeyBuffer& key, EncryptionPolicy* policy) {
     const std::lock_guard<std::mutex> lock(fscrypt_keyring_mutex);
     policy->options = options;
-    LOG(ERROR) << "DBG installKey mp=" << mountpoint << " ver=" << options.version
-               << " hw_wrapped=" << options.use_hw_wrapped_key << " ksize=" << key.size();
     // Put the fscrypt_add_key_arg in an automatically-zeroing buffer, since we
     // have to copy the raw key into it.
     KeyBuffer arg_buf(sizeof(struct fscrypt_add_key_arg) + key.size(), 0);
@@ -281,11 +279,9 @@ bool installKey(const std::string& mountpoint, const EncryptionOptions& options,
         // Detect at the real install site (mountpoint is definitely mounted
         // here) rather than a cached probe, which can race /data being mounted.
         int saved_errno = errno;
-        LOG(ERROR) << "DBG add_key ioctl failed errno=" << saved_errno << " (ENOTTY=" << ENOTTY
-                   << ") ver=" << options.version << " hw_wrapped=" << options.use_hw_wrapped_key;
         if (saved_errno == ENOTTY && options.version == 1 && !options.use_hw_wrapped_key) {
-            LOG(ERROR) << "DBG FS_IOC_ADD_ENCRYPTION_KEY unsupported on " << mountpoint
-                       << "; installing via legacy fscrypt keyring";
+            LOG(INFO) << "FS_IOC_ADD_ENCRYPTION_KEY unsupported on " << mountpoint
+                      << " (ENOTTY); installing via legacy fscrypt keyring";
             return installKeyLegacy(key, policy->key_raw_ref);
         }
         errno = saved_errno;
