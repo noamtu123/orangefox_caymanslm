@@ -22,5 +22,6 @@ sync run `./apply-fixes.sh` (in the repo root), which copies `overlay/` over `~/
 | `patches/bootloader-message-misc-fallback.patch` | use the canonical by-name `misc` node when Android rejects TWRP's four-column fstab; fixes BCB clearing and targeted reboots |
 | `patches/caymanslm-time-settings-migration.patch` | migrates the obsolete CET setting to Israel's POSIX rule and enables 24-hour time |
 | `patches/caymanslm-three-channel-flashlight.patch` | adds a third OrangeFox flashlight sysfs path; caymanslm requires both torch channels before enabling the shared switch |
+| `kernel-patches/caymanslm-edl-warm-reset.patch` | enables Qualcomm EDL on this LG kernel and preserves its EDL cookies with a warm reset |
 
 Everything is here — there are **no forks**. `apply-fixes.sh` restores all of it after a sync.

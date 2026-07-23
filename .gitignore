@@ -9,3 +9,5 @@ fox/
 out/
 orangefox-sync/
 logs/
+build-edl.log
+build-edl.err.log

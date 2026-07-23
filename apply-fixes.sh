@@ -34,4 +34,18 @@ for PATCH in "$HERE"/patches/*.patch; do
   fi
 done
 
+KERNEL_REPO="$FOX/kernel/lge/sdm845"
+for PATCH in "$HERE"/kernel-patches/*.patch; do
+  PATCH_NAME="$(basename "$PATCH")"
+  if git -C "$KERNEL_REPO" apply --check "$PATCH" 2>/dev/null; then
+    git -C "$KERNEL_REPO" apply "$PATCH"
+    echo "  applied kernel $PATCH_NAME"
+  elif git -C "$KERNEL_REPO" apply --reverse --check "$PATCH" 2>/dev/null; then
+    echo "  kernel $PATCH_NAME already applied"
+  else
+    echo "error: kernel patch $PATCH_NAME does not apply cleanly" >&2
+    exit 1
+  fi
+done
+
 echo "Done. (All fixes are local overlays/patches; no forks.)"

@@ -3,6 +3,12 @@
 OrangeFox `fox_14.1` recovery for the **LG Velvet 4G, LM-G910EMW** (Snapdragon 845,
 codename `caymanslm`), with working Qualcomm FBE `/data` decryption.
 
+## Maintainer
+
+![noamtu123 maintainer profile](assets/noamtu123-maintainer.png)
+
+**noamtu123**
+
 > LM-G910EMW only. **Not** the 5G Velvet (`caymanlm` / SDM765G — a different device).
 
 ## Repo layout
