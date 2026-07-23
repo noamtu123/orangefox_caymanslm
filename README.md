@@ -1,24 +1,28 @@
-# OrangeFox for LG Velvet 4G
+# OrangeFox Recovery — LG Velvet 4G (`caymanslm`)
 
-Initial OrangeFox recovery bring-up for the LG Velvet 4G LM-G910EMW,
-codename `caymanslm`.
+OrangeFox `fox_14.1` recovery for the **LG Velvet 4G, LM-G910EMW** (Snapdragon 845,
+codename `caymanslm`), with working Qualcomm FBE `/data` decryption.
 
-The device tree is under `device/lge/caymanslm`. It uses stock G91030a slot-A
-kernel, DTB, and recovery DTBO prebuilts extracted over EDL.
+> LM-G910EMW only. **Not** the 5G Velvet (`caymanlm` / SDM765G — a different device).
 
-## GitHub Actions build
+## Repo layout
 
-Run the **Build OrangeFox** workflow manually. Device-tree pushes do not start
-expensive builds automatically. A successful run uploads:
+- `device/lge/caymanslm/` — the device tree (details, decryption, and flashing in its README).
+- `overlay/` — whole-file fixes to **upstream** repos, copied over the build tree by
+  `apply-fixes.sh` after a `repo sync`. No forks, no patches, no CI (see `OVERLAY.md`).
+- `.github/manifests/caymanslm.xml` — `local_manifest` (pins the kernel source).
 
-- `recovery-caymanslm.img`
-- SHA-256 checksum
-- parsed boot-header details
-- parsed AVB footer details
+## Building (WSL, no CI)
 
-The workflow uses the official public OrangeFox sync helper with the
-`fox_12.1` branch. The first image is experimental and must not be written to
-both recovery slots.
+Built locally in a WSL OrangeFox `fox_14.1` tree at `~/fox`:
 
-See `device/lge/caymanslm/README.md` for the testing policy and
-`device/lge/caymanslm/EXTRACTION.md` for stock-image analysis.
+```sh
+cd ~/fox && repo sync                     # only when you actually need to re-sync
+/mnt/e/orangefox_caymanslm/apply-fixes.sh # re-apply overlay fixes after a sync
+source build/envsetup.sh
+lunch twrp_caymanslm-ap2a-eng
+mka recoveryimage
+```
+
+The device tree itself is copied into `~/fox/device/lge/caymanslm` (it is not a
+`repo` project). See `device/lge/caymanslm/README.md` for everything device-specific.

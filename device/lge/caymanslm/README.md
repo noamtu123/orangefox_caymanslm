@@ -1,86 +1,61 @@
-# OrangeFox device tree — LG Velvet 4G (caymanslm, LM-G910EMW)
+# OrangeFox device tree — LG Velvet 4G (`caymanslm`, LM-G910EMW)
 
-OrangeFox **fox_14.1** recovery for the LG Velvet 4G (Snapdragon 845, codename
-`caymanslm`). Built on the hardware-validated LineageOS foundation with the
-kernel compiled from source, and with Qualcomm FBE decryption for both stock and
-LineageOS `/data`.
+OrangeFox `fox_14.1` recovery for the LG Velvet 4G (Snapdragon 845, codename
+`caymanslm`), with working Qualcomm FBE `/data` decryption.
 
 **Scope:** LM-G910EMW only (any region firmware). **Not** the 5G Velvet
-(`caymanlm`/SDM765G — different device).
+(`caymanlm` / SDM765G — a different device).
 
 ## Architecture
 
-- **Base:** OrangeFox `fox_14.1` (Android 15) minimal manifest.
+- **Base:** OrangeFox `fox_14.1` minimal manifest.
 - **Kernel:** built from source — `kernel/lge/sdm845` (LineageOS lineage-22.2),
-  `lineageos_caymanslm_defconfig`. This brings the proven display (BGRA_8888),
-  touch, UFS, and USB drivers, and the clean cmdline. The stock A11 prebuilt
-  kernel is **not** used (its RGBX/`video=vfb` cmdline belong to that kernel).
-- **Firmware target:** split-version phone — Android 12 system on Android 11
-  vendor (`G91030a`), Keymaster **@4.0** / Gatekeeper **@1.0** / qseecom **@1.0**.
-- **Decryption:** the FBE blob closure (see `blob-manifest.txt`) is extracted
-  from the device's own `G91030a` vendor and **bundled into the recovery
-  ramdisk** at `/vendor`. This is slot-agnostic (does not live-mount vendor) and
-  region-correct. fox_14.1 auto-detects the keymaster version from the bundled
-  VINTF manifest.
+  `lineageos_caymanslm_defconfig` (proven display/touch/UFS/USB drivers, clean cmdline).
+- **Firmware target:** Android 12 system on Android 11 vendor (`G91030a`);
+  Keymaster **@4.0** / Gatekeeper **@1.0** / qseecom **@1.0**.
+- **Decrypt blobs:** the FBE blob closure (`blob-manifest.txt`) is extracted from
+  the device's own `G91030a` vendor and bundled into the recovery ramdisk at
+  `/vendor` — slot-agnostic (no live vendor mount) and region-correct.
 
-External sources are pinned in `.github/manifests/caymanslm.xml`.
+Kernel source is pinned in `.github/manifests/caymanslm.xml`.
 
-## Build (CI)
+## Decryption — working
 
-Compiled via the manual GitHub Actions workflow (`.github/workflows/build-orangefox.yml`,
-`workflow_dispatch` only). It syncs fox_14.1 + the pinned trees, builds the
-kernel from source, and produces `out/target/product/caymanslm/recovery.img`.
-The workflow has a disk-capacity gate (≥ 25 GiB free after sync) to avoid false
-failures. **Expect several build→fix iterations** — a new tree does not compile
-clean on the first try.
+`/data` FBE decryption works on-device (verified against stock A12 ROM data; a
+LineageOS install on this same kernel uses the same scheme and is expected to work too).
 
-## Flashing guide (for LM-G910EMW owners)
+This device's kernel — stock and our LineageOS build alike — is **legacy fscrypt**:
+Qualcomm ICE, policy **v1**, driven by the old `add_key` keyring API. It has **no**
+fscrypt v2 `FS_IOC_ADD_ENCRYPTION_KEY` ioctl. Android-12 `vold` installs FBE keys
+*only* via that v2 ioctl, so key install failed with `ENOTTY`. The fix restores
+vold's legacy key path (`installKeyLegacy`, with an `ENOTTY` fallback) — see
+`overlay/system/vold/`. The keymaster/keystore2 crypto chain (qseecomd + bundled
+HAL, a servicemanager VINTF add-gate bypass so keystore2 registers, and
+`prepdecrypt` patchlevel handling) supports it.
 
-> **This device is A/B with dedicated `recovery_a`/`recovery_b` partitions. You
-> must flash the recovery to your ACTIVE slot, or "reboot to recovery" will just
-> launch the other slot's stock recovery.**
+## Build
 
-1. Unlock the bootloader (erases data).
-2. Check your active slot:
-   ```sh
-   fastboot getvar current-slot        # or: adb shell getprop ro.boot.slot_suffix
-   ```
-3. Flash to that slot only (example for slot a):
-   ```sh
-   fastboot flash recovery_a OrangeFox-caymanslm.img
-   ```
-   Keep the other slot's stock recovery + an EDL restore path as backup.
-4. Reboot straight to recovery (don't boot system first, or stock may restore it).
+Built in WSL — there is no CI. After a `repo sync`, run the repo-root
+`apply-fixes.sh` to re-apply the upstream overlay fixes, then:
 
-**If you later switch slots or take an OTA**, the bootloader starts using the
-other slot's recovery — re-flash OrangeFox to the new active slot. Once you trust
-the build, advanced users may flash **both** slots so slot switches don't lose it.
+```sh
+source build/envsetup.sh && lunch twrp_caymanslm-ap2a-eng && mka recoveryimage
+```
 
-## Decryption support
+## Flashing (LM-G910EMW)
 
-**Status: untested — no successful compile or on-device test yet.** All claims
-below are design intent for the target firmware, not verified behavior.
+A/B device with dedicated `recovery_a` / `recovery_b` partitions.
 
-- **Intended target:** LM-G910EMW on the A11 vendor (`G91030a`) family — stock
-  A12 system and LineageOS both ride this vendor, so both are expected to decrypt
-  with the same bundled stack once proven on-device.
-- Expected to boot on LM-G910EMW hardware regardless of firmware, but this is a
-  target, not a tested guarantee. **Significantly older stock firmware may boot
-  but fail to decrypt** (different keymaster trustlet). Report your
-  `ro.vendor.lge.swversion` if decryption fails.
-- Compatibility is claimed only for the firmware actually inspected
-  (`G91030a`, A11 vendor). Anything else is unverified.
+- **`fastboot flash recovery_a` is BLOCKED** by LG's bootloader — it reports
+  *"Cannot flash this partition in unlocked state"* even though the device is
+  unlocked (an LG per-partition restriction; `boot` flashes fine, `recovery` does not).
+- To install: flash the image from **within a running OrangeFox**
+  (Install → Flash Recovery), or `fastboot boot <recovery.img>` to **RAM-boot** it
+  for testing.
+- Keep slot B's stock recovery + an EDL restore path as backup. **Do not flash both
+  recovery slots** during bring-up.
 
-## Known first-iteration items (need on-device logs)
+## Safety
 
-- SELinux denials while starting the crypto services (`/tmp/recovery.log` from
-  the first one-slot decrypt test drives the fixes — do not guess allow rules).
-- qseecomd labeling in `sepolicy/vendor/file_contexts`.
-- LineageOS (A15) FBE policy/metadata-encryption version handling.
-- MTP is disabled for bring-up; validate ADB first, then enable.
-
-## Safety policy
-
-Untested hardware bring-up. Never flash both recovery slots during testing.
-Never touch userdata/metadata/persist/PINs/FBE keys/IMEI. No "it works" claim
-without an on-device one-slot test with logs.
+Never flash both recovery slots during testing. Never touch
+userdata / metadata / persist / PINs / FBE keys / IMEI.
