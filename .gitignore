@@ -4,5 +4,8 @@ artifacts/
 build.log
 diagnostics/
 extracted files/
+dumped files/
 fox/
+out/
 orangefox-sync/
+logs/
