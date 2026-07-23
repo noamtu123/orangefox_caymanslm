@@ -33,6 +33,14 @@ on property:ro.boot.usbcontroller=*
 # Migrate the old OrangeFox default saved by earlier builds. Fresh installs
 # already use OF_DEFAULT_TIMEZONE; this exact trigger preserves any other
 # timezone the user deliberately selects.
+# keystore2's upstream late-init trigger races the Qualcomm secure-world
+# services: it starts before qseecomd/keymaster, aborts, then init waits for a
+# restart. The recovery overlay disables that early trigger. Start it only
+# after the Keymaster 4 service is alive, which removes the failed attempt
+# before automatic FBE decryption.
+on property:init.svc.keymaster-4-0-qti=running
+    start keystore2
+
 on property:persist.sys.timezone=CET-1;CEST,M3.5.0,M10.5.0
     setprop persist.sys.timezone IST-2IDT,M3.4.4/26,M10.5.0
 

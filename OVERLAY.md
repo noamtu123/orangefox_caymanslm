@@ -19,6 +19,7 @@ sync run `./apply-fixes.sh` (in the repo root), which copies `overlay/` over `~/
 | `bootable/recovery/twrp-functions.cpp` | reliable fastbootd BCB command and LG `/persist/time/ats_2` clock source |
 | `bootable/recovery/etc/init.recovery.logd.rc` | add logd control socket |
 | `system/vold/*` (KeyUtil.cpp, FsCrypt.cpp, Decrypt.cpp, KeystoreInfo.cpp, Weaver1.*, Android.bp) | **FBE decrypt**: legacy Qualcomm ICE fscrypt `installKeyLegacy` + ENOTTY fallback + synthetic `/data` fstab entry |
+| `system/security/keystore2/keystore2.rc` | disables upstream's premature `late-init` start; device init starts Keystore2 after Qualcomm Keymaster is ready, avoiding its boot-time abort/retry |
 | `patches/bootloader-message-misc-fallback.patch` | use the canonical by-name `misc` node when Android rejects TWRP's four-column fstab; fixes BCB clearing and targeted reboots |
 | `patches/caymanslm-time-settings-migration.patch` | migrates the obsolete CET setting to Israel's POSIX rule and enables 24-hour time |
 | `patches/caymanslm-three-channel-flashlight.patch` | adds a third OrangeFox flashlight sysfs path; caymanslm requires both torch channels before enabling the shared switch |

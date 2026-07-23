@@ -30,6 +30,16 @@ if [ -f "$THEME_AVATAR_OUT" ]; then
   echo "  refreshed generated maintainer avatar"
 fi
 
+# The recovery staging directory can retain the old upstream keystore2.rc
+# during an incremental build even after the source overlay has been copied.
+# Refresh it explicitly so the disabled late-init trigger is always packaged.
+KEYSTORE_INIT="$HERE/overlay/system/security/keystore2/keystore2.rc"
+KEYSTORE_INIT_OUT="$FOX/out/target/product/caymanslm/recovery/root/system/etc/init/keystore2.rc"
+if [ -f "$KEYSTORE_INIT_OUT" ]; then
+  cp -f "$KEYSTORE_INIT" "$KEYSTORE_INIT_OUT"
+  echo "  refreshed generated keystore2 init"
+fi
+
 RECOVERY_REPO="$FOX/bootable/recovery"
 for PATCH in "$HERE"/patches/*.patch; do
   PATCH_NAME="$(basename "$PATCH")"

@@ -113,7 +113,11 @@ BOARD_RAMDISK_USE_LZMA := true
 # -------------------------------------------------------------------------
 BOARD_FLASH_BLOCK_SIZE := 262144
 BOARD_DTBOIMG_PARTITION_SIZE := 8388608
-BOARD_RECOVERYIMAGE_PARTITION_SIZE := 104857600
+# Build and pad to 64 MiB, rather than the physical 100 MiB partition capacity.
+# The image header carries the actual component lengths; 64 MiB leaves ample
+# room for the current ~38 MiB payload while keeping downloads reasonable.
+# Physical recovery_a/recovery_b capacity: 104857600 bytes.
+BOARD_RECOVERYIMAGE_PARTITION_SIZE := 67108864
 # BOARD_BOOTIMAGE_PARTITION_SIZE intentionally omitted: this is a recovery-only
 # build (no boot image produced). The LineageOS value (67108864) also disagrees
 # with the EDL dumps (boot_a/b = 100663296); left out to avoid a wrong assertion.
