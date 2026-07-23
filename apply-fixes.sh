@@ -20,6 +20,16 @@ FOX="${1:-$HOME/fox}"
 echo "Applying overlay fixes to $FOX ..."
 cp -av "$HERE/overlay/." "$FOX/" | sed 's/^/  /'
 
+# The OrangeFox theme copier does not track individual image files as Ninja
+# dependencies. Refresh this generated resource when an incremental build tree
+# already exists; a clean tree will copy it from overlay normally.
+THEME_AVATAR="$HERE/overlay/bootable/recovery/gui/theme/portrait_hdpi/images/Default/About/maintainer.png"
+THEME_AVATAR_OUT="$FOX/out/target/product/caymanslm/recovery/root/twres/images/Default/About/maintainer.png"
+if [ -f "$THEME_AVATAR_OUT" ]; then
+  cp -f "$THEME_AVATAR" "$THEME_AVATAR_OUT"
+  echo "  refreshed generated maintainer avatar"
+fi
+
 RECOVERY_REPO="$FOX/bootable/recovery"
 for PATCH in "$HERE"/patches/*.patch; do
   PATCH_NAME="$(basename "$PATCH")"

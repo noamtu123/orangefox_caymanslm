@@ -23,5 +23,6 @@ sync run `./apply-fixes.sh` (in the repo root), which copies `overlay/` over `~/
 | `patches/caymanslm-time-settings-migration.patch` | migrates the obsolete CET setting to Israel's POSIX rule and enables 24-hour time |
 | `patches/caymanslm-three-channel-flashlight.patch` | adds a third OrangeFox flashlight sysfs path; caymanslm requires both torch channels before enabling the shared switch |
 | `kernel-patches/caymanslm-edl-warm-reset.patch` | enables Qualcomm EDL on this LG kernel and preserves its EDL cookies with a warm reset |
+| `overlay/bootable/recovery/gui/theme/portrait_hdpi/images/Default/About/maintainer.png` | noamtu123's OrangeFox About-page maintainer avatar |
 
 Everything is here — there are **no forks**. `apply-fixes.sh` restores all of it after a sync.
