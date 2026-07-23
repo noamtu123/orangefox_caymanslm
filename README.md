@@ -18,6 +18,13 @@ codename `caymanslm`), with working Qualcomm FBE `/data` decryption.
   `apply-fixes.sh` after a `repo sync`. No forks, no patches, no CI (see `OVERLAY.md`).
 - `.github/manifests/caymanslm.xml` — `local_manifest` (pins the kernel source).
 
+## Android EDL reboot
+
+For an LM-G910EMW user to patch their own active Android boot image without
+sharing a device-specific boot image, use
+[the EDL boot guide](docs/ANDROID_EDL_BOOT_GUIDE.md). It preserves the user's
+own boot ramdisk (including Magisk) and requires this EDL-enabled recovery.
+
 ## Building (WSL, no CI)
 
 Built locally in a WSL OrangeFox `fox_14.1` tree at `~/fox`:
