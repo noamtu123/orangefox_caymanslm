@@ -1,0 +1,4 @@
+# This repo feeds a Linux (WSL) Android build tree. Force LF everywhere so
+# overlay source files and shell scripts never get CRLF on a Windows checkout.
+* text=auto eol=lf
+*.sh text eol=lf
