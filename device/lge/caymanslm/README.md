@@ -55,6 +55,14 @@ A/B device with dedicated `recovery_a` / `recovery_b` partitions.
 - Keep slot B's stock recovery + an EDL restore path as backup. **Do not flash both
   recovery slots** during bring-up.
 
+### Android EDL reboot
+
+The EDL kernel fix is included in recovery. For `adb reboot edl` issued from
+Android itself, the active Android boot image must also be repacked with that
+kernel and its matching DTB while retaining the dumped stock boot image's
+header and ramdisk. This intentionally replaces a Magisk-patched boot image;
+back it up first and use the matching slot's dumped `boot_*.bin` as the base.
+
 ## Safety
 
 Never flash both recovery slots during testing. Never touch
