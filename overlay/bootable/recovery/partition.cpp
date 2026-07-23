@@ -834,9 +834,12 @@ if (TWFunc::Path_Exists("/data/unencrypted/key/version")) {
 	ExcludeAll(Mount_Point + "/cache");
 	ExcludeAll(Mount_Point + "/per_boot"); // removed each boot by init
 	ExcludeAll(Mount_Point + "/gsi"); // cow devices
-	int retry_count = 30;
+	// The Qualcomm services are started by recovery init before this point.
+	// Poll frequently instead of adding a whole second of logo time per probe;
+	// retain a ten-second total window for cold starts.
+	int retry_count = 40;
 	while (!android::keystore::Decrypt_DE() && --retry_count)
-		usleep(1000000);
+		usleep(250000);
 	if (retry_count > 0) {
 		PartitionManager.Set_Crypto_State();
 		Is_Encrypted = true;
