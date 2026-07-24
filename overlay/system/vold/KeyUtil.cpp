@@ -28,6 +28,8 @@
 #include <linux/keyctl.h>
 #include <openssl/sha.h>
 #include <sys/ioctl.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
@@ -136,6 +138,18 @@ static bool fscryptKeyring(key_serial_t* device_keyring) {
             return false;
         }
         LOG(DEBUG) << "Created fscrypt keyring " << *device_keyring;
+        // The recovery binary (which links vold and installs these keys) has its
+        // own session keyring. adbd and other services init launches run as uid 0
+        // with the *user* session keyring instead, so their v1-fscrypt
+        // request_key() cannot see a keyring that only lives in our session
+        // keyring: creating new files under /data/media/0 then fails with ENOKEY
+        // (e.g. `adb push` to /sdcard, even though decryption succeeded and reads
+        // work). Also link the keyring into the uid-0 user session keyring so
+        // those processes find it. Best-effort; recovery's own access is via the
+        // session-keyring link above and is unaffected if this fails.
+        if (syscall(__NR_keyctl, KEYCTL_LINK, *device_keyring, KEY_SPEC_USER_SESSION_KEYRING) != 0) {
+            PLOG(WARNING) << "Unable to link fscrypt keyring into the user session keyring";
+        }
     }
     return true;
 }
