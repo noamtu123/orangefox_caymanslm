@@ -23,7 +23,7 @@ sync run `./apply-fixes.sh` (in the repo root), which copies `overlay/` over `~/
 | `patches/bootloader-message-misc-fallback.patch` | use the canonical by-name `misc` node when Android rejects TWRP's four-column fstab; fixes BCB clearing and targeted reboots |
 | `patches/caymanslm-time-settings-migration.patch` | migrates the obsolete CET setting to Israel's POSIX rule and enables 24-hour time |
 | `patches/caymanslm-three-channel-flashlight.patch` | adds a third OrangeFox flashlight sysfs path; caymanslm requires both torch channels before enabling the shared switch |
-| `patches/caymanslm-skip-empty-theme-reload.patch` | avoids parsing the complete OrangeFox UI a second time after FBE unlock when the default empty theme directories exist |
+| `patches/caymanslm-skip-empty-theme-reload.patch` | skips the post-decrypt `reapply_settings` theme reload entirely — /data auto-decrypts before the first GUI parse, so the custom theme (`/sdcard/Fox/theme/ui.zip`) and `/persist/.foxs` settings are already loaded; avoids a full second UI parse (~2s faster boot) |
 | `kernel-patches/caymanslm-edl-warm-reset.patch` | enables Qualcomm EDL on this LG kernel and preserves its EDL cookies with a warm reset |
 | `overlay/bootable/recovery/gui/theme/portrait_hdpi/images/Default/About/maintainer.png` | noamtu123's OrangeFox About-page maintainer avatar |
 
