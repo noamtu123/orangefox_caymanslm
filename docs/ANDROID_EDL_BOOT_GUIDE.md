@@ -1,47 +1,76 @@
 # Enable Android ADB EDL reboot
 
-This is for the LG Velvet 4G LM-G910EMW (caymanslm) only. It creates a boot
-image from your own phone's current boot slot, retaining its header and ramdisk
-(including Magisk if present) while adding the EDL-enabled kernel and DTB.
+This is for the LG Velvet 4G LM-G910EMW (caymanslm) only. Do not use it on the
+5G Velvet or any other model.
 
-Do not use it on the 5G Velvet or any other model. Do not flash an image made
-for another phone or slot.
+`adb reboot edl` already works from OrangeFox, because the recovery is built
+with the EDL kernel patch. From Android it does nothing useful: Android runs
+its own kernel out of `boot_<slot>`, and the stock LG kernel has the Qualcomm
+emergency-download path compiled out behind `CONFIG_LGE_HANDLE_PANIC`.
+
+`tools/patch-android-edl-boot.ps1` copies the EDL-enabled kernel and its DTB
+out of the OrangeFox recovery partition into each boot image, leaving that
+image's header and ramdisk — including Magisk — untouched. That is the entire
+change: same Android, same root, EDL reboot now works.
 
 ## Prerequisites
 
-1. Install and boot this project's EDL-enabled OrangeFox recovery in the slot
-   you intend to patch. It must be visible as ADB device.
-2. On Windows, clone/download this repository and open PowerShell in its root.
-   Ensure adb is on PATH.
-3. Have at least 250 MB free in `artifacts/`, where the automatic backup and
-   the generated image are written. `fastboot` must be on PATH as well as adb.
+1. Install this project's EDL-enabled OrangeFox recovery, and boot it. The
+   kernel is read from the recovery *partition*, so a RAM-booted
+   (`fastboot boot`) recovery is not enough.
+2. On Windows, open PowerShell in the repository root. Both `adb` and
+   `fastboot` must be on PATH.
+3. Have ~400 MB free in `artifacts/`, where backups and patched images go.
 
-## Build first, then flash
-
-The first command creates a rollback backup and patched image; it does not
-change the phone.
+## Usage
 
 ~~~powershell
 .\tools\patch-android-edl-boot.ps1
 ~~~
 
-Review the printed paths, then flash the verified result:
+It asks whether to **patch** or **restore**. Both actions are safe to re-run.
 
-~~~powershell
-.\tools\patch-android-edl-boot.ps1 -Flash
-~~~
+### patch
 
-For a non-active slot, specify it explicitly in both runs, for example
--Slot b. That slot's recovery image must be this EDL-enabled build.
+For each of `boot_a` and `boot_b` it checks whether that slot already carries
+the EDL kernel. Slots that do are reported as already patched and skipped.
+Slots that do not are backed up to `artifacts/edl-backup/boot_<slot>-stock.img`,
+patched, hash-checked, and written.
 
-The script SHA-256-checks the built image against the on-device copy before it
-will flash anything. With `-Flash` it then reboots the phone into the
-bootloader and writes the image with `fastboot flash boot_<slot>` — LG's aboot
-refuses `recovery` but accepts `boot`, so nothing is dd'd over a live
-partition — and reboots Android. If the flash fails, the phone is left in the
-bootloader and the printed rollback command restores the backup.
+An existing stock backup is never overwritten. Backups are only ever taken from
+an unpatched image, so a backup cannot silently become a patched one.
 
-Once Android ADB is available, test:
+The kernel source is whichever recovery partition actually carries the EDL
+kernel — not each slot's own recovery. Slot B's recovery may still be stock,
+and sourcing from it would inject a stock kernel into `boot_b`, which is the
+opposite of the goal. If neither recovery slot has it, the script stops without
+writing anything.
+
+### restore
+
+Writes `artifacts/edl-backup/boot_<slot>-stock.img` back to each slot. If a
+backup is missing it says so per slot, and if neither exists it stops without
+touching the phone.
+
+## How "already patched" is decided
+
+By looking for the string `Failed to set secure EDLOAD mode` in the unpacked
+kernel. That symbol sits behind `CONFIG_LGE_HANDLE_PANIC`, which the kernel
+patch opens up — verified as 1 hit on the patched kernel and 0 on both the
+stock boot and stock recovery kernels. It makes the check exact rather than a
+guess, and it doubles as proof that the kernel being patched *with* is genuinely
+EDL-capable.
+
+## Writing
+
+Images are written through the bootloader with `fastboot flash boot_<slot>`.
+LG's aboot refuses `recovery` but accepts `boot`, so nothing is `dd`'d over a
+live partition. The script reboots the phone to the bootloader itself. If a
+flash fails, the phone is left in the bootloader rather than stranded mid-write.
+
+## Testing it
+
+Once Android ADB is available:
 
 ~~~powershell
 adb reboot edl
@@ -50,7 +79,12 @@ adb reboot edl
 Success is a black screen and Windows detecting Qualcomm HS-USB QDLoader 9008.
 Hold Power for roughly 10-15 seconds to leave EDL.
 
+Note that `adb reboot <anything-else>` boots normally rather than reporting an
+error — Android never validates that string, so this is stock behaviour and not
+a sign that the patch failed.
+
 ## Rollback
 
-Boot OrangeFox again, push the automatically created backup image to /tmp, and
-flash it back to the matching boot slot. Do not flash it to the other slot.
+~~~powershell
+.\tools\patch-android-edl-boot.ps1 -Action restore
+~~~
