@@ -1,0 +1,26 @@
+diff --git a/crypto/init.recovery.qcom_decrypt.rc b/crypto/init.recovery.qcom_decrypt.rc
+--- a/crypto/init.recovery.qcom_decrypt.rc
++++ b/crypto/init.recovery.qcom_decrypt.rc
+@@ -126,8 +126,8 @@ service keymaster-4-0 /system/bin/android.hardware.keymaster@4.0-service
+ 
+ service keymaster-4-0-qti /system/bin/android.hardware.keymaster@4.0-service-qti
+-    user root
+-    group root
++    user system
++    group system drmrpc
+     setenv LD_LIBRARY_PATH /vendor/lib64:/vendor/lib:/system/lib64:/system/lib:/sbin
+     disabled
+     oneshot
+diff --git a/crypto_fbe/init.recovery.qcom_decrypt.fbe.rc b/crypto_fbe/init.recovery.qcom_decrypt.fbe.rc
+--- a/crypto_fbe/init.recovery.qcom_decrypt.fbe.rc
++++ b/crypto_fbe/init.recovery.qcom_decrypt.fbe.rc
+@@ -42,8 +42,8 @@ service gatekeeper-1-0 /system/bin/android.hardware.gatekeeper@1.0-service
+ 
+ service gatekeeper-1-0-qti /system/bin/android.hardware.gatekeeper@1.0-service-qti
+-    user root
+-    group root
++    user system
++    group system
+     setenv LD_LIBRARY_PATH /vendor/lib64:/vendor/lib:/system/lib64:/system/lib:/sbin
+     disabled
+     seclabel u:r:recovery:s0

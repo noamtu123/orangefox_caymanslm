@@ -40,7 +40,14 @@ PRODUCT_PACKAGES += \
 #     each service's LD_LIBRARY_PATH=/vendor/lib64:...);
 #   - VINTF fragment -> /vendor/etc/vintf/manifest (its filename contains
 #     "android.hardware.keymaster" so OrangeFox's ramdisk-manifest fallback,
-#     which does `find -name "*android.hardware.keymaster*"`, can locate it).
+#     which does `find -name "*android.hardware.keymaster*"`, can locate it);
+#   - VINTF ROOT manifest -> /vendor/etc/vintf/manifest.xml. Required: libvintf
+#     only scans the fragment directory above when the root manifest.xml parses
+#     first, and the base ramdisk ships none -- so without it the fragment is
+#     dead weight, both HALs stay undeclared, keystore2 negotiates the shared
+#     HMAC with zero participants, and gatekeeper cannot mint an auth token
+#     (PIN decrypt fails with -24 while no-PIN decrypt works). See the header
+#     comment in recovery/root/vendor/etc/vintf/manifest.xml.
 #
 # We do NOT bundle the per-service .rc files: twrp-common supplies the
 # correctly-sequenced service definitions (qseecomd on the crypto.ready/
@@ -72,6 +79,7 @@ PRODUCT_COPY_FILES += \
     $(RECOVERY_ROOT)/system/bin/android.hardware.keymaster@4.0-service-qti:$(TARGET_COPY_OUT_RECOVERY)/root/system/bin/android.hardware.keymaster@4.0-service-qti \
     $(RECOVERY_ROOT)/system/bin/android.hardware.gatekeeper@1.0-service-qti:$(TARGET_COPY_OUT_RECOVERY)/root/system/bin/android.hardware.gatekeeper@1.0-service-qti \
     $(RECOVERY_ROOT)/vendor/lib64/vendor.qti.hardware.qseecom@1.0.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/vendor.qti.hardware.qseecom@1.0.so \
+    $(RECOVERY_ROOT)/vendor/lib64/hw/android.hardware.gatekeeper@1.0-impl-qti.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/hw/android.hardware.gatekeeper@1.0-impl-qti.so \
     $(RECOVERY_ROOT)/vendor/lib64/libqtikeymaster4.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/libqtikeymaster4.so \
     $(RECOVERY_ROOT)/vendor/lib64/libQSEEComAPI.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/libQSEEComAPI.so \
     $(RECOVERY_ROOT)/vendor/lib64/libkeymasterutils.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/libkeymasterutils.so \
@@ -81,4 +89,5 @@ PRODUCT_COPY_FILES += \
     $(RECOVERY_ROOT)/vendor/lib64/libdrmfs.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/libdrmfs.so \
     $(RECOVERY_ROOT)/vendor/lib64/librpmb.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/librpmb.so \
     $(RECOVERY_ROOT)/vendor/lib64/libssd.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/libssd.so \
+    $(RECOVERY_ROOT)/vendor/etc/vintf/manifest.xml:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/etc/vintf/manifest.xml \
     $(RECOVERY_ROOT)/vendor/etc/vintf/manifest/android.hardware.keymaster_gatekeeper_caymanslm.xml:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/etc/vintf/manifest/android.hardware.keymaster_gatekeeper_caymanslm.xml

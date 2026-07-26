@@ -1,0 +1,16 @@
+diff --git a/crypto/system/bin/prepdecrypt.sh b/crypto/system/bin/prepdecrypt.sh
+--- a/crypto/system/bin/prepdecrypt.sh
++++ b/crypto/system/bin/prepdecrypt.sh
+@@ -204,7 +204,12 @@ check_dynamic()
+ check_encrypt()
+ {
+ 	if [ "$sdkver" -ge 26 ]; then
+-		sleep 1
++		# Most devices start this from an init property race and need the
++		# historical grace period. Devices which start prepdecrypt only after
++		# Process_Fstab has resolved crypto properties can explicitly skip it.
++		if [ "$(getprop prepdecrypt.crypto_props_ready)" != "true" ]; then
++			sleep 1
++		fi
+ 	fi
+ 	encrypt_type=$(getprop ro.crypto.type)

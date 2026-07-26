@@ -1,0 +1,11 @@
+diff --git a/libs/binder/IServiceManager.cpp b/libs/binder/IServiceManager.cpp
+--- a/libs/binder/IServiceManager.cpp
++++ b/libs/binder/IServiceManager.cpp
+@@ -440,2 +440,2 @@
+-            using std::literals::chrono_literals::operator""s;
+-            waiter->mCv.wait_for(lock, 1s, [&] {
++            using std::literals::chrono_literals::operator""ms;
++            waiter->mCv.wait_for(lock, 100ms, [&] {
+@@ -447,1 +447,1 @@
+-        ALOGW("Waited one second for %s (is service started? Number of threads started in the "
++        ALOGW("Waited 100 ms for %s (is service started? Number of threads started in the "

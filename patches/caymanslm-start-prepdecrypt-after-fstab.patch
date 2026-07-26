@@ -1,0 +1,14 @@
+diff --git a/twrp.cpp b/twrp.cpp
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -558,6 +558,10 @@ int main(int argc, char **argv) {
+ 		LOGERR("Failing out of recovery due to problem with fstab.\n");
+ 		return -1;
+ 	}
++	// Dynamic partition mappings are ready now. Start prepdecrypt before the UI
++	// begins loading so FBE services initialize in parallel with the splash.
++	if (!startup.Get_Fastboot_Mode())
++		TWFunc::Fox_Property_Set("ctl.start", "prepdecrypt");
+ 
+ 	// Set the props for OrangeFox dynamic partitions
+ 	//PartitionManager.Fox_Set_Dynamic_Partition_Props();

@@ -20,6 +20,7 @@
 SHA256                                               SIZE         SOURCE->TARGET
 51dfd65bcdba19b658f469feffd9200c629dde51b1df6f95001445abb2f66099 11216        /bin/hw/android.hardware.keymaster@4.0-service-qti -> /system/bin/android.hardware.keymaster@4.0-service-qti
 91297d849ad3b7fd8889ee5ab0cf8c7fde48889743730ff9097a71fbcdb3325e 11040        /bin/hw/android.hardware.gatekeeper@1.0-service-qti -> /system/bin/android.hardware.gatekeeper@1.0-service-qti
+ce350eccf1c73866954002bea5235e132b8c4267ef2b2b71852de1947df316e2 37088        /lib64/hw/android.hardware.gatekeeper@1.0-impl-qti.so -> /vendor/lib64/hw/android.hardware.gatekeeper@1.0-impl-qti.so
 7f9b98e4de6ce1d7942639afcccd5a845ce4581d80724c48a56e747cc7b56f0f 16504        /bin/qseecomd -> /system/bin/qseecomd
 a2fa68ab0dd28970752a500bca1fc9ad82220c3090fa7a8f9a9dfecfad4c887a 124592       /lib64/vendor.qti.hardware.qseecom@1.0.so -> /vendor/lib64/vendor.qti.hardware.qseecom@1.0.so
 9040ae17c40ebbc3a94a53bacd171fc7922d5fb19e43bd55687f50c8cb693ff1 149528       /lib64/libqtikeymaster4.so -> /vendor/lib64/libqtikeymaster4.so

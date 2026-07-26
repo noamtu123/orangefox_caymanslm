@@ -1,0 +1,19 @@
+diff --git a/transport/ServiceManagement.cpp b/transport/ServiceManagement.cpp
+--- a/transport/ServiceManagement.cpp
++++ b/transport/ServiceManagement.cpp
+@@ -823,1 +823,1 @@
+-        using std::literals::chrono_literals::operator""s;
++        using std::literals::chrono_literals::operator""ms;
+@@ -826,3 +826,3 @@
+-            // As an alternative, just sleep for a second and return
+-            LOG(WARNING) << "Waiting one second for " << mInterfaceName << "/" << mInstanceName;
+-            sleep(1);
++            // Recovery has no binder callback pool here; poll briefly instead.
++            LOG(WARNING) << "Waiting 100 ms for " << mInterfaceName << "/" << mInstanceName;
++            usleep(100000);
+@@ -834,1 +834,1 @@
+-            mCondition.wait_for(lock, 1s, [this]{
++            mCondition.wait_for(lock, 100ms, [this]{
+@@ -841,1 +841,1 @@
+-            LOG(WARNING) << "Waited one second for " << mInterfaceName << "/" << mInstanceName;
++            LOG(WARNING) << "Waited 100 ms for " << mInterfaceName << "/" << mInstanceName;

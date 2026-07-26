@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Root VINTF *device* manifest for the recovery ramdisk.
+
+  This file must exist for the FBE decrypt HALs to be declared at all.
+  libvintf's VintfObject::fetchDeviceHalManifest() reads /vendor/etc/vintf/
+  manifest.xml first and only calls addDirectoryManifests() on the
+  /vendor/etc/vintf/manifest/ fragment directory when that root file parsed
+  successfully. The base OrangeFox ramdisk ships no root manifest.xml, so the
+  keymaster/gatekeeper fragment next to this file was silently never loaded:
+
+    hwservicemanager: getTransport: Cannot find entry
+      android.hardware.keymaster@4.0::IKeymasterDevice/default in either
+      framework or device VINTF manifest.
+    hwservicemanager: getTransport: Cannot find entry
+      android.hardware.gatekeeper@1.0::IGatekeeper/default ...
+
+  With no keymaster instance visible in the manifest, keystore2's
+  shared_secret_negotiation finds zero participants and concludes trivially
+  ("Shared secret negotiation concluded successfully." before it has even
+  found the device), so computeSharedHmac() is never issued to the TA and the
+  auth-token HMAC key is never established. Gatekeeper then compares the PIN
+  correctly but cannot mint a usable auth token, and returns -24 to
+  GatekeeperHalDevice::verify_legacy. TWRP logs that as "GateKeeper response
+  error", keystore2 as "No suitable auth token found /
+  KEY_USER_NOT_AUTHENTICATED", and PIN decrypt fails while no-credential
+  decrypt (which needs no auth token) keeps working.
+
+  Proven on-device 2026-07-26: with a wrong PIN the trustlet returns -30
+  (VERIFICATION_FAILED) and with the correct PIN -24, i.e. the comparison
+  itself always succeeded and only the post-match token minting failed.
+  Dropping this file in and restarting hwservicemanager + the HAL services
+  turned the -24 into a successful add_auth_token() and decrypted user 0.
+
+  Note: once TWRP mounts the real vendor partition, this ramdisk file is
+  shadowed by LG's own /vendor/etc/vintf/manifest.xml. That is harmless:
+  hwservicemanager parses VINTF once at its own startup, long before recovery
+  mounts anything, so this file is the one that counts (and LG's declares the
+  same two HALs anyway).
+
+  The fragment android.hardware.keymaster_gatekeeper_caymanslm.xml is kept
+  alongside this file on purpose: OrangeFox locates the keymaster version to
+  start by `find`ing a ramdisk manifest whose *filename* contains
+  "android.hardware.keymaster" (that is what sets keymaster_ver=4.x). The
+  duplicate declarations across the two files are tolerated by libvintf, and
+  that is the exact combination proven on-device.
+-->
+<manifest version="1.0" type="device">
+    <hal format="hidl">
+        <name>android.hardware.keymaster</name>
+        <transport>hwbinder</transport>
+        <version>4.0</version>
+        <interface>
+            <name>IKeymasterDevice</name>
+            <instance>default</instance>
+        </interface>
+    </hal>
+    <hal format="hidl">
+        <name>android.hardware.gatekeeper</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IGatekeeper</name>
+            <instance>default</instance>
+        </interface>
+    </hal>
+</manifest>

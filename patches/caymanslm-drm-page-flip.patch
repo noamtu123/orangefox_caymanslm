@@ -1,0 +1,17 @@
+diff --git a/minuitwrp/graphics_drm.cpp b/minuitwrp/graphics_drm.cpp
+--- a/minuitwrp/graphics_drm.cpp
++++ b/minuitwrp/graphics_drm.cpp
+@@ -1149,7 +1149,11 @@ static GRSurface* drm_flip(minui_backend* backend __unused) {
+ static GRSurface* drm_flip(minui_backend* backend __unused) {
+-    memcpy(drm_surfaces[current_buffer]->base.data,
++    // Keep the displayed framebuffer immutable while it is scanned out.  The
++    // previous code copied into current_buffer and only toggled the index
++    // after the atomic commit, defeating the two-buffer setup and causing
++    // visible tearing/jank during scroll redraws.
++    current_buffer = 1 - current_buffer;
++    memcpy(drm_surfaces[current_buffer]->base.data,
+             draw_buf->data, draw_buf->height * draw_buf->row_bytes);
+     update_plane_fb();
+-    current_buffer = 1 - current_buffer;
+     return draw_buf;
+ }

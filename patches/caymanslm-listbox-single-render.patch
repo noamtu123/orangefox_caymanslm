@@ -1,0 +1,16 @@
+diff --git a/gui/listbox.cpp b/gui/listbox.cpp
+--- a/gui/listbox.cpp
++++ b/gui/listbox.cpp
+@@ -316,9 +316,10 @@ int GUIListBox::Update(void)
+ 	GUIScrollList::Update();
+ 
+ 	if (mUpdate) {
+ 		mUpdate = 0;
+-		if (Render() == 0)
+-			return 2;
++		// PageManager renders the complete page before flip(). Rendering this
++		// list here as well paints every scrolling frame twice.
++		return 2;
+ 	}
+ 	return 0;
+ }
