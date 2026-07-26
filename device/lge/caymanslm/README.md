@@ -17,7 +17,7 @@ OrangeFox `fox_14.1` recovery for the LG Velvet 4G (Snapdragon 845, codename
   the device's own `G91030a` vendor and bundled into the recovery ramdisk at
   `/vendor` — slot-agnostic (no live vendor mount) and region-correct.
 
-Kernel source is pinned in `.github/manifests/caymanslm.xml`.
+Kernel source is pinned in `manifests/caymanslm.xml`.
 
 ## Decryption — working
 
@@ -101,10 +101,10 @@ OrangeFox. For it to work from Android too, the Android boot image must also
 carry that kernel and its matching DTB, while keeping its own header and
 ramdisk (including Magisk).
 
-`tools/patch-android-edl-boot.ps1` does this against your own phone's boot
+`edl-boot-patch/patch-android-edl-boot.ps1` does this against your own phone's boot
 slots, so no device-specific boot image is ever shared. It backs up each slot
 before touching it and can restore them. See
-[the EDL guide](../../../docs/ANDROID_EDL_BOOT_GUIDE.md).
+[`edl-boot-patch/`](../../../edl-boot-patch/README.md).
 
 ## Safety
 

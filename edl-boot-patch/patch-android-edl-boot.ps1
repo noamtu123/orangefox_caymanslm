@@ -307,5 +307,5 @@ foreach ($slot in $toPatch) {
 
 Write-Host ''
 Write-Host 'Done. Rebooting Android; test with: adb reboot edl'
-Write-Host "Roll back with: .\tools\patch-android-edl-boot.ps1 -Action restore"
+Write-Host "Roll back with: .\patch-android-edl-boot.ps1 -Action restore"
 & $Fastboot reboot

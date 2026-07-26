@@ -13,7 +13,7 @@ pattern.
   the stock Android 12 firmware (G91030a).
 - Magisk 30.7 in the installer zip.
 - `adb reboot edl` from Android, via an optional boot-image patch — see
-  [the EDL guide](docs/ANDROID_EDL_BOOT_GUIDE.md).
+  [`edl-boot-patch/`](edl-boot-patch/).
 
 ## Install
 
@@ -46,7 +46,8 @@ It is recommended to back up your stock `boot` and `recovery` partitions before 
 | `patches/` | narrow upstream changes as diffs |
 | `kernel-patches/` | Qualcomm EDL kernel patch |
 | `apply-fixes.sh` | re-applies all of the above after a `repo sync` |
-| `tools/` | EDL boot patcher, build helper |
+| `manifests/` | `repo` local manifest, pinning the kernel source |
+| `edl-boot-patch/` | standalone tool for EDL reboot from Android |
 
 There are **no forks** — every upstream change lives here as an overlay file or
 a patch. [`OVERLAY.md`](OVERLAY.md) explains each one.
