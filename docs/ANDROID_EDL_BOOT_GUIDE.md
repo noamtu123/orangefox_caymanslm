@@ -13,8 +13,8 @@ for another phone or slot.
    you intend to patch. It must be visible as ADB device.
 2. On Windows, clone/download this repository and open PowerShell in its root.
    Ensure adb is on PATH.
-3. Have at least 250 MB free beside the script for the automatic backup and
-   generated image.
+3. Have at least 250 MB free in `artifacts/`, where the automatic backup and
+   the generated image are written. `fastboot` must be on PATH as well as adb.
 
 ## Build first, then flash
 
@@ -34,8 +34,14 @@ Review the printed paths, then flash the verified result:
 For a non-active slot, specify it explicitly in both runs, for example
 -Slot b. That slot's recovery image must be this EDL-enabled build.
 
-The script verifies SHA-256 before and after writing the boot image, then
-reboots Android. Once Android ADB is available, test:
+The script SHA-256-checks the built image against the on-device copy before it
+will flash anything. With `-Flash` it then reboots the phone into the
+bootloader and writes the image with `fastboot flash boot_<slot>` — LG's aboot
+refuses `recovery` but accepts `boot`, so nothing is dd'd over a live
+partition — and reboots Android. If the flash fails, the phone is left in the
+bootloader and the printed rollback command restores the backup.
+
+Once Android ADB is available, test:
 
 ~~~powershell
 adb reboot edl
