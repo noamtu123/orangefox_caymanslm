@@ -23,11 +23,18 @@
 
 .PARAMETER Action
   'patch' or 'restore'. Prompted for when omitted.
+
+.PARAMETER BuildOnly
+  With -Action patch: back up and build the patched images, verify them, then
+  stop without writing anything to the phone. Use it to confirm the repack
+  works on a build that has not been flashed before.
 #>
 [CmdletBinding()]
 param(
     [ValidateSet('patch', 'restore')]
-    [string]$Action
+    [string]$Action,
+
+    [switch]$BuildOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -241,6 +248,15 @@ foreach ($slot in $toPatch) {
     Invoke-AdbShell 'rm -rf /tmp/edlwork /tmp/edlprobe' | Out-Null
     $built[$slot] = $local
     Write-Host "  built $local"
+}
+
+if ($BuildOnly) {
+    Write-Host ''
+    Write-Host 'BuildOnly: nothing was written to the phone.'
+    foreach ($slot in $toPatch) {
+        Write-Host "  boot_$slot -> $($built[$slot])"
+    }
+    exit 0
 }
 
 Enter-Fastboot
