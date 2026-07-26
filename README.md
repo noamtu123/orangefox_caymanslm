@@ -13,9 +13,11 @@ pattern.
   the stock Android 12 firmware (G91030a).
 - Magisk 30.7 in the installer zip.
 - `adb reboot edl` from Android, via an optional boot-image patch — see
-  [`edl-boot-patch/`](edl-boot-patch/).
+  [`edl-boot-script/`](edl-boot-script/).
 
 ## Install
+
+It is recommended to back up your stock `boot` and `recovery` partitions before you start.
 
 LG's bootloader rejects `fastboot flash recovery` on this device even when
 unlocked, so installation goes through the zip. The zip is also what writes the
@@ -32,10 +34,9 @@ The first command RAM-boots the recovery without installing it; the second
 installs it for real.
 
 Alternatively, `adb push` the zip to `/tmp` and flash it from within OrangeFox.
-When flashing a raw `.img` there instead (Install → Flash Image), *Options →
-flash to both slots* writes both.
-
-It is recommended to back up your stock `boot` and `recovery` partitions before you start.
+If you for some reason decide to flash the raw `.img` there instead (Install →
+Flash Image), it's recommended to enable *Options → flash to both slots* so it
+writes both.
 
 ## Repo layout
 
@@ -47,7 +48,7 @@ It is recommended to back up your stock `boot` and `recovery` partitions before 
 | `kernel-patches/` | Qualcomm EDL kernel patch |
 | `apply-fixes.sh` | re-applies all of the above after a `repo sync` |
 | `manifests/` | `repo` local manifest, pinning the kernel source |
-| `edl-boot-patch/` | standalone tool for EDL reboot from Android |
+| `edl-boot-script/` | standalone tool for EDL reboot from Android |
 
 There are **no forks** — every upstream change lives here as an overlay file or
 a patch. [`OVERLAY.md`](OVERLAY.md) explains each one.

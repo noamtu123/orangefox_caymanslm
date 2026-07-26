@@ -31,7 +31,7 @@ Images are written with `fastboot flash boot_<slot>`. LG's bootloader refuses
 You need `adb` and `fastboot` on PATH, and the OrangeFox recovery **installed**
 (not `fastboot boot`-ed — the kernel is read from the partition).
 
-Boot into OrangeFox, then:
+Boot into OrangeFox, connect the phone to your PC with a cable, then run:
 
 ```powershell
 .\patch-android-edl-boot.ps1

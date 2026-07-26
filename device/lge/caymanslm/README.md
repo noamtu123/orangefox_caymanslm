@@ -101,10 +101,10 @@ OrangeFox. For it to work from Android too, the Android boot image must also
 carry that kernel and its matching DTB, while keeping its own header and
 ramdisk (including Magisk).
 
-`edl-boot-patch/patch-android-edl-boot.ps1` does this against your own phone's boot
+`edl-boot-script/patch-android-edl-boot.ps1` does this against your own phone's boot
 slots, so no device-specific boot image is ever shared. It backs up each slot
 before touching it and can restore them. See
-[`edl-boot-patch/`](../../../edl-boot-patch/README.md).
+[`edl-boot-script/`](../../../edl-boot-script/README.md).
 
 ## Safety
 
