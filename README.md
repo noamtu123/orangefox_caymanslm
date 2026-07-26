@@ -35,7 +35,7 @@ Alternatively, `adb push` the zip to `/tmp` and flash it from within OrangeFox.
 When flashing a raw `.img` there instead (Install → Flash Image), *Options →
 flash to both slots* writes both.
 
-Back up your stock `boot` and `recovery` partitions before you start.
+It is recommended to back up your stock `boot` and `recovery` partitions before you start.
 
 ## Repo layout
 
