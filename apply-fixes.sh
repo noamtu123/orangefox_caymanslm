@@ -64,7 +64,8 @@ for PATCH in \
   "$HERE/patches/caymanslm-skip-empty-theme-reload.patch" \
   "$HERE/patches/caymanslm-time-settings-migration.patch" \
   "$HERE/patches/caymanslm-three-channel-flashlight.patch" \
-  "$HERE/patches/bootloader-message-misc-fallback.patch"; do
+  "$HERE/patches/bootloader-message-misc-fallback.patch" \
+  "$HERE/patches/caymanslm-battery-charge-responsiveness.patch"; do
   apply_repo_patch "$RECOVERY_REPO" "$PATCH"
 done
 
