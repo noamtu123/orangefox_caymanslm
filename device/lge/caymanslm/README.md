@@ -77,9 +77,12 @@ A/B device with dedicated `recovery_a` / `recovery_b` partitions.
   `Override_Active_Slot()`. That only retargets which physical partition TWRP
   writes — it does not call the bootloader's `set_active_boot_slot`, so it
   cannot leave the device booting the wrong slot.
-  It **does** overwrite slot B's stock recovery, so keep the restore path intact:
-  `dumped files/recovery_b.bin` is a full dump of it, and EDL still works. Restore
-  from those if a build ever turns out to be unbootable on both slots.
+  It **does** overwrite slot B's stock recovery, so keep a restore path intact
+  before using it: dump both recovery partitions to your PC first
+  (`adb pull /dev/block/bootdevice/by-name/recovery_b`), and remember EDL still
+  works as a last resort. Restore from those if a build ever turns out to be
+  unbootable on both slots. Those dumps are per-device and are not shipped in
+  this repo.
 - Flashing the bare `recovery.img` does **not** deploy the Fox addons. The
   installer zip carries `sdcard/Fox/FoxFiles/{Magisk.zip,uninstall.zip,
   AromaFM/AromaFM.zip}` and `sdcard/Fox/fox.bashrc`; a raw image flash writes
@@ -93,17 +96,21 @@ A/B device with dedicated `recovery_a` / `recovery_b` partitions.
 
 ### Android EDL reboot
 
-The EDL kernel fix is included in recovery. For `adb reboot edl` issued from
-Android itself, the active Android boot image must also be repacked with that
-kernel and its matching DTB while retaining the dumped stock boot image's
-header and ramdisk. This intentionally replaces a Magisk-patched boot image;
-back it up first and use the matching slot's dumped `boot_*.bin` as the base.
+The EDL kernel fix is included in recovery, so `adb reboot edl` works from
+OrangeFox. For it to work from Android too, the Android boot image must also
+carry that kernel and its matching DTB, while keeping its own header and
+ramdisk (including Magisk).
+
+`tools/patch-android-edl-boot.ps1` does this against your own phone's boot
+slots, so no device-specific boot image is ever shared. It backs up each slot
+before touching it and can restore them. See
+[the EDL guide](../../../docs/ANDROID_EDL_BOOT_GUIDE.md).
 
 ## Safety
 
 Flashing both recovery slots is no longer off-limits (see *Flashing* above) —
-bring-up is finished and `dumped files/recovery_b.bin` + EDL are the restore
-path. Keep those recoverable before using *Flash to both slots*, and don't let
-both slots carry the same untested build.
+bring-up is finished. Keep your own dump of slot B's stock recovery, plus EDL,
+as the restore path before using *Flash to both slots*, and don't let both slots
+carry the same untested build.
 
 Never touch userdata / metadata / persist / PINs / FBE keys / IMEI.
