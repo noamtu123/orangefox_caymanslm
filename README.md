@@ -9,12 +9,11 @@ pattern.
 
 ## Highlights
 
-- **FBE `/data` decryption** with no credential set, and with PIN / password /
-  pattern. Verified against the stock Android 12 firmware (G91030a).
-- **Magisk 30.7** in the installer zip.
-- **`adb reboot edl` from Android**, via an optional boot-image patch — see
+- FBE `/data` decryption, with and without a credential set. Verified against
+  the stock Android 12 firmware (G91030a).
+- Magisk 30.7 in the installer zip.
+- `adb reboot edl` from Android, via an optional boot-image patch — see
   [the EDL guide](docs/ANDROID_EDL_BOOT_GUIDE.md).
-- Flashlight fixed (this panel needs both torch channels driven).
 
 ## Install
 
@@ -38,28 +37,13 @@ flash to both slots* writes both.
 
 Back up your stock `boot` and `recovery` partitions before you start.
 
-## Decryption
-
-This device's kernel is **legacy fscrypt** — Qualcomm ICE, policy v1, driven by
-the old `add_key` keyring API, with no fscrypt v2 `FS_IOC_ADD_ENCRYPTION_KEY`
-ioctl. Android 12's `vold` installs FBE keys only through that v2 ioctl, so key
-install failed with `ENOTTY`. The fix restores vold's legacy key path.
-
-Credential decrypt needed a second fix: the ramdisk had no root
-`/vendor/etc/vintf/manifest.xml`, and libvintf only scans the manifest
-*fragment* directory once that root file parses. Keymaster and gatekeeper were
-therefore undeclared, keystore2's shared-secret negotiation ran with zero
-participants, and gatekeeper could match the PIN but never mint an auth token.
-
-Details in [`device/lge/caymanslm/README.md`](device/lge/caymanslm/README.md).
-
 ## Repo layout
 
 | Path | Contents |
 |---|---|
-| `device/lge/caymanslm/` | device tree |
-| `overlay/` | whole-file fixes to upstream repos |
-| `patches/` | narrow upstream fixes as diffs |
+| `device/lge/caymanslm/` | device tree, and the device-specific detail |
+| `overlay/` | whole-file changes to upstream repos |
+| `patches/` | narrow upstream changes as diffs |
 | `kernel-patches/` | Qualcomm EDL kernel patch |
 | `apply-fixes.sh` | re-applies all of the above after a `repo sync` |
 | `tools/` | EDL boot patcher, build helper |
@@ -79,10 +63,6 @@ mka recoveryimage
 
 Produces both the `.img` and the `.zip` in `$OUT`. `apply-fixes.sh` also fetches
 the pinned Magisk release by version and SHA256.
-
-Keep `vendorsetup.sh` **LF-only**: shell does not strip a trailing CR the way
-make and XML parsers do, and CRLF there silently corrupts every exported build
-variable.
 
 ## Contributing
 
