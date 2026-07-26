@@ -52,8 +52,25 @@ A/B device with dedicated `recovery_a` / `recovery_b` partitions.
 - To install: flash the image from **within a running OrangeFox**
   (Install → Flash Recovery), or `fastboot boot <recovery.img>` to **RAM-boot** it
   for testing.
-- Keep slot B's stock recovery + an EDL restore path as backup. **Do not flash both
-  recovery slots** during bring-up.
+- Flashing **both** recovery slots is allowed now that bring-up is done (decrypt,
+  including PIN/password/pattern, and the UI fixes are all working). The
+  *Options → Flash to both slots* checkbox on the Flash Image screen does this:
+  it flashes the current slot, then repeats against the other one via
+  `Override_Active_Slot()`. That only retargets which physical partition TWRP
+  writes — it does not call the bootloader's `set_active_boot_slot`, so it
+  cannot leave the device booting the wrong slot.
+  It **does** overwrite slot B's stock recovery, so keep the restore path intact:
+  `dumped files/recovery_b.bin` is a full dump of it, and EDL still works. Restore
+  from those if a build ever turns out to be unbootable on both slots.
+- Flashing the bare `recovery.img` does **not** deploy the Fox addons. The
+  installer zip carries `sdcard/Fox/FoxFiles/{Magisk.zip,uninstall.zip,
+  AromaFM/AromaFM.zip}` and `sdcard/Fox/fox.bashrc`; a raw image flash writes
+  only the partition. Until those files exist, Fox Addons → Install/Uninstall
+  Magisk correctly reports *"file doesn't exist! please reflash recovery using
+  the installation zip"*. That message is accurate, not a build fault. Fix it by
+  flashing `OrangeFox-R12.0-Unofficial-caymanslm.zip` from within OrangeFox, or
+  by copying those files out of the zip to `/sdcard` by hand. They live on
+  userdata, so this only needs doing once per `/data` wipe.
 
 ### Android EDL reboot
 
@@ -65,5 +82,9 @@ back it up first and use the matching slot's dumped `boot_*.bin` as the base.
 
 ## Safety
 
-Never flash both recovery slots during testing. Never touch
-userdata / metadata / persist / PINs / FBE keys / IMEI.
+Flashing both recovery slots is no longer off-limits (see *Flashing* above) —
+bring-up is finished and `dumped files/recovery_b.bin` + EDL are the restore
+path. Keep those recoverable before using *Flash to both slots*, and don't let
+both slots carry the same untested build.
+
+Never touch userdata / metadata / persist / PINs / FBE keys / IMEI.

@@ -1,0 +1,20 @@
+diff --git a/gui/theme/portrait_hdpi/pages/install.xml b/gui/theme/portrait_hdpi/pages/install.xml
+index ea88792a..002ac66c 100644
+--- a/gui/theme/portrait_hdpi/pages/install.xml
++++ b/gui/theme/portrait_hdpi/pages/install.xml
+@@ -483,7 +483,14 @@
+ 
+ 			<listbox style="settingslist">
+ 				<condition var1="fox_branch" op="&gt;=" var2="11"/>
+-				<condition var1="fox_vab_device" var2="1"/>
++				<!-- Deliberately NOT gated on fox_vab_device: this listbox is the
++				     content of the {@options_cptn} caption above, and that caption
++				     is not gated on it either. Requiring virtual A/B here hid the
++				     listbox on a plain A/B device while the caption still drew,
++				     leaving a stray "Options" label stranded over empty space with
++				     nothing to tap. The option is not virtual-A/B specific:
++				     GUIAction::flashimage() implements it via Override_Active_Slot()
++				     for any AB_OTA_UPDATER build flashing a SlotSelect target. -->
+ 				<condition var1="tw_is_slot_part" var2="1"/>
+ 				<condition var1="tw_has_boot_slots" var2="1"/>
+ 				<!--placement x="0" y="%row6_1a_y%" w="%screen_w%" h="%lb_l1%"/-->
