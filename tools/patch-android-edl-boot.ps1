@@ -34,7 +34,9 @@ param(
     [ValidateSet('patch', 'restore')]
     [string]$Action,
 
-    [switch]$BuildOnly
+    [switch]$BuildOnly,
+
+    [string]$BackupDir
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,8 +52,22 @@ $Slots = @('a', 'b')
 # so a stock recovery partition can never be used as the source.
 $EdlMarker = 'Failed to set secure EDLOAD mode'
 
-$RepoRoot = Split-Path -Parent $PSScriptRoot
-$BackupDir = Join-Path $RepoRoot 'artifacts\edl-backup'
+# Only this device has these partition paths and this kernel. Published
+# alongside the recovery, the script will land on machines whose phone is not a
+# caymanslm, so refuse rather than write a foreign kernel into someone's boot.
+$ExpectedDevice = 'caymanslm'
+
+# In a repo checkout the backups belong in the gitignored artifacts/. Published
+# standalone there is no such directory, so fall back to sitting beside the
+# script rather than creating a stray artifacts/ wherever it was unzipped.
+if (-not $BackupDir) {
+    $artifactsRoot = Join-Path (Split-Path -Parent $PSScriptRoot) 'artifacts'
+    if (Test-Path $artifactsRoot) {
+        $BackupDir = Join-Path $artifactsRoot 'edl-backup'
+    } else {
+        $BackupDir = Join-Path $PSScriptRoot 'edl-backup'
+    }
+}
 
 function Invoke-AdbShell([string]$Command) {
     $result = & $Adb shell $Command
@@ -129,6 +145,27 @@ function Invoke-FastbootFlash([string]$Slot, [string]$ImagePath) {
     }
 }
 
+# Refuse to run against anything that is not this phone, whichever mode it is
+# in. The by-name partition paths and the kernel are both caymanslm-specific.
+function Assert-ExpectedDevice {
+    if (Test-FastbootPresent) {
+        $product = (& $Fastboot getvar product 2>&1) | Out-String
+        if ($product -notmatch $ExpectedDevice) {
+            throw "Bootloader reports a product other than $ExpectedDevice. Refusing to touch this phone. (got: $($product.Trim()))"
+        }
+        return
+    }
+    $state = (& $Adb get-state 2>$null)
+    if ($state) { $state = $state.Trim() }
+    if ($state -ne 'device' -and $state -ne 'recovery') {
+        throw 'Phone is neither in fastboot nor visible over ADB. Connect it and retry.'
+    }
+    $device = Invoke-AdbShell 'getprop ro.product.device'
+    if ($device -ne $ExpectedDevice) {
+        throw "This script is for the LG Velvet 4G ($ExpectedDevice) only; this phone reports '$device'. Refusing to touch it."
+    }
+}
+
 if (-not $Action) {
     Write-Host ''
     Write-Host '  [1] patch    - add the EDL kernel to both boot slots'
@@ -155,6 +192,7 @@ if ($Action -eq 'restore') {
         throw 'backup is missing - nothing to restore.'
     }
 
+    Assert-ExpectedDevice
     Enter-Fastboot
     foreach ($slot in $present) {
         $img = Get-BackupPath $slot
@@ -173,6 +211,7 @@ if ($state) { $state = $state.Trim() }
 if ($state -ne 'device' -and $state -ne 'recovery') {
     throw 'No ADB device is available. Boot the EDL-enabled OrangeFox recovery and enable ADB.'
 }
+Assert-ExpectedDevice
 Invoke-AdbShell 'test -x /sbin/magiskboot' | Out-Null
 
 # Find a recovery partition whose kernel is actually EDL-capable. Sourcing each

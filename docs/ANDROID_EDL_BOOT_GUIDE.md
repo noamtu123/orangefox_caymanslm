@@ -20,7 +20,14 @@ change: same Android, same root, EDL reboot now works.
    (`fastboot boot`) recovery is not enough.
 2. On Windows, open PowerShell in the repository root. Both `adb` and
    `fastboot` must be on PATH.
-3. Have ~400 MB free in `artifacts/`, where backups and patched images go.
+3. Have ~400 MB free for backups and patched images. In a repo checkout they go
+   to `artifacts/edl-backup/`; running the script standalone they go to an
+   `edl-backup/` folder beside it. Override with `-BackupDir <path>`.
+
+The script refuses to run against anything whose device codename is not
+`caymanslm`, checked over adb or `fastboot getvar product` depending on the
+mode the phone is in. The partition paths and the kernel are specific to this
+phone, so it stops rather than writing a foreign kernel into someone's boot.
 
 ## Usage
 
