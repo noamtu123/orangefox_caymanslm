@@ -106,6 +106,65 @@ slots, so no device-specific boot image is ever shared. It backs up each slot
 before touching it and can restore them. See
 [`edl-boot-script/`](../../../edl-boot-script/README.md).
 
+## Backup and ROM rollback
+
+LG's firmware servers are gone, so there is no KDZ to fall back on. The fstab
+therefore covers **every partition on the device**, but in two tiers.
+
+**Default list (7).** Boot, Recovery, DTBO, Vbmeta, Vbmeta System, Data, Super —
+exactly what a ROM install rewrites, and nothing else. `vbmeta` is the only
+non-obvious one: LineageOS flashes a vbmeta with verification disabled, so
+without it in the backup you can restore stock `super` but never stock AVB
+state. Because every entry here is rollback-relevant, "tick everything" is the
+correct action rather than a trap.
+
+**Advanced list (55 more), `advbackup=1`.** Hidden until Settings → Backup →
+*Show additional partitions to backup* (`fox_adv_backup`) is enabled — see
+`partitionmanager.cpp`, which ORs `Can_Be_Adv_Backed_Up` with that setting.
+Covers the bootloader chain (`xbl`, `abl`, `tz`, `hyp`, `keymaster`, `laf`, ...),
+the per-handset data (`persist`, `p_persist_lg`, `drm`, `modemst1/2`, `fsg`),
+provisioning state (`frp`, `devinfo`), and the Qualcomm/LG platform partitions.
+
+Not exposed anywhere, deliberately: `ALIGN_TO_128K_1/2` and `grow` (GPT padding,
+no content), `pstore` (volatile kernel ring buffer), and `system`/`vendor`/
+`product` (logical — they live inside `super`, which is backed up whole).
+
+**Backing anything up is safe; restoring is where the hazards are**, and the
+Restore screen ticks whatever a backup folder contains. Never restore
+`modemst1`/`modemst2`/`fsg` over working ones — stale radio NV is a way to
+*create* the IMEI loss you were insuring against. Never restore `frp` (can
+reassert a Google account lock on a device you legitimately reset) or `devinfo`
+(bootloader unlock state). The bootloader chain is largely academic as a
+recovery backup anyway: if any of it is damaged the device cannot reach recovery
+to restore it.
+
+For the tier below recovery, prefer an **EDL firehose dump** — it captures all
+of the above byte-exact plus the GPT, which TWRP has no concept of and cannot
+back up at all.
+
+`super` needs no fstab entry: `Setup_Super_Partition()` adds it automatically as
+a raw image whenever `/dev/block/by-name/super` exists.
+
+**Rollback set for a ROM swap** — a LineageOS install writes `super_empty.img`,
+`boot`, `dtbo`, `recovery` and `vbmeta`. `super_empty.img` erases super's LP
+metadata outright, taking the whole dynamic-partition layout with it, so a raw
+`super` image is the *only* way back. Tick: **Super, Boot, DTBO, Vbmeta,
+Recovery, Data**.
+
+Super is 20 GiB (`BOARD_SUPER_PARTITION_SIZE`), and `Raw_Read_Write` is a flat
+1 MB block copy — no compression, no sparse-skip, no splitting. So it needs an
+**exFAT or ext4** destination (FAT32 caps files at 4 GB) and it cannot live on
+internal storage, which is the `/data` being backed up in the same run.
+
+**Restoring across a ROM change requires formatting `/data` first.** `/data` is
+`BM_FILES` — a tar of *decrypted* content, with the keyblob under
+`/data/unencrypted` deliberately excluded (see `Decrypt_FBE_DE()`). So the
+backup carries no key, and the format costs nothing. It is also mandatory: the
+on-disk keyblob is version-bound, and once the newer ROM's vold has stamped it,
+a lower-`os_version` ROM's keymaster rejects it. Order: restore firmware →
+format `/data` → boot the ROM once so vold mints a fresh key and creates the
+user-0 CE directories → restore Data.
+
 ## Safety
 
 Flashing both recovery slots is no longer off-limits (see *Flashing* above) —

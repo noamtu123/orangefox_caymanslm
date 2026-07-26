@@ -17,7 +17,7 @@
 
 # --- Userdata: Qualcomm FBE (ICE). Plain fileencryption, no metadata-encrypt. ---
 /data               f2fs    /dev/block/bootdevice/by-name/userdata              flags=fileencryption=ice;sysfs_path="/sys/devices/platform/soc/1d84000.ufshc";reservedsize=128M
-/metadata           ext4    /dev/block/bootdevice/by-name/metadata              flags=display="Metadata";backup=0
+/metadata           ext4    /dev/block/bootdevice/by-name/metadata              flags=display="Metadata";advbackup=1
 
 # --- External storage / OTG (sysfs voldmanaged; sdcard is NOT internal sda) ---
 /external_sd        auto    /devices/platform/soc/8804000.sdhci/mmc_host*       flags=display="microSD";storage;wipeingui;removable;fsflags="nosuid,nodev"
@@ -33,14 +33,100 @@
 # (mount one -> all mount; unmount one -> all unmount). Nothing in this tree
 # references the old /vendor/* paths (grep-verified), and the block devices are
 # unchanged, so mounttodecrypt still works — they're just no longer nested.
-/firmware_mnt       vfat    /dev/block/bootdevice/by-name/modem                 flags=slotselect;display="Firmware";mounttodecrypt;backup=0
-/persist            ext4    /dev/block/bootdevice/by-name/persist               flags=display="Persist";mounttodecrypt;backup=0
-/dsp                ext4    /dev/block/bootdevice/by-name/dsp                   flags=slotselect;display="DSP";mounttodecrypt;backup=0
+/firmware_mnt       vfat    /dev/block/bootdevice/by-name/modem                 flags=slotselect;display="Firmware";mounttodecrypt;advbackup=1
+/persist            ext4    /dev/block/bootdevice/by-name/persist               flags=display="Persist";mounttodecrypt;advbackup=1
+/dsp                ext4    /dev/block/bootdevice/by-name/dsp                   flags=slotselect;display="DSP";mounttodecrypt;advbackup=1
 
 # --- Raw / flashable partitions (backup + install targets) ---
 /boot               emmc    /dev/block/bootdevice/by-name/boot                  flags=slotselect;display="Boot";backup=1;flashimg=1
 /recovery           emmc    /dev/block/bootdevice/by-name/recovery              flags=slotselect;display="Recovery";backup=1;flashimg=1
 /dtbo               emmc    /dev/block/bootdevice/by-name/dtbo                   flags=slotselect;display="DTBO";backup=1;flashimg=1
-/vbmeta             emmc    /dev/block/bootdevice/by-name/vbmeta                 flags=slotselect;display="Vbmeta";backup=0;flashimg=1
-/vbmeta_system      emmc    /dev/block/bootdevice/by-name/vbmeta_system         flags=slotselect;display="Vbmeta System";backup=0;flashimg=1
-/misc               emmc    /dev/block/bootdevice/by-name/misc                  flags=display="Misc";backup=0
+# vbmeta is backup=1 because a ROM install rewrites it (LineageOS flashes a
+# vbmeta with verification disabled). Without it in the backup you can restore
+# stock super but never stock AVB state. vbmeta_system is its chained pair.
+# Per-handset partitions (persist, drm, modemst1/2, fsg) are deliberately NOT
+# exposed: they are already covered byte-exact in an EDL dump, and exposing them
+# here would put a stale-radio-NV restore one tick away on the Restore screen.
+/vbmeta             emmc    /dev/block/bootdevice/by-name/vbmeta                 flags=slotselect;display="Vbmeta";backup=1;flashimg=1
+/vbmeta_system      emmc    /dev/block/bootdevice/by-name/vbmeta_system         flags=slotselect;display="Vbmeta System";backup=1;flashimg=1
+/misc               emmc    /dev/block/bootdevice/by-name/misc                  flags=display="Misc";advbackup=1
+
+# ============================================================================
+# Everything below is advbackup=1: hidden unless Settings -> Backup -> "Show
+# additional partitions to backup" (fox_adv_backup) is enabled. The default
+# backup list stays at the ROM-rollback set above.
+#
+# NONE of these are flashimg. Backing them up is always safe; RESTORING most of
+# them is not, and the Restore screen will happily tick everything that is in a
+# backup folder. Read the per-group notes before restoring anything here.
+# ============================================================================
+
+# --- Bootloader / firmware chain (A/B). Identical on every LM-G910EMW, so
+# another handset's dump would substitute. Note these are largely academic as a
+# recovery backup: if any of them is damaged the device cannot reach recovery to
+# restore them, and you would be in EDL anyway. ---
+/xbl                emmc    /dev/block/bootdevice/by-name/xbl                   flags=slotselect;display="XBL";advbackup=1
+/xbl_config         emmc    /dev/block/bootdevice/by-name/xbl_config            flags=slotselect;display="XBL Config";advbackup=1
+/abl                emmc    /dev/block/bootdevice/by-name/abl                   flags=slotselect;display="ABL (fastboot)";advbackup=1
+/tz                 emmc    /dev/block/bootdevice/by-name/tz                    flags=slotselect;display="TrustZone";advbackup=1
+/hyp                emmc    /dev/block/bootdevice/by-name/hyp                   flags=slotselect;display="Hypervisor";advbackup=1
+/keymaster          emmc    /dev/block/bootdevice/by-name/keymaster             flags=slotselect;display="Keymaster";advbackup=1
+/cmnlib             emmc    /dev/block/bootdevice/by-name/cmnlib                flags=slotselect;display="Cmnlib";advbackup=1
+/cmnlib64           emmc    /dev/block/bootdevice/by-name/cmnlib64              flags=slotselect;display="Cmnlib64";advbackup=1
+/devcfg             emmc    /dev/block/bootdevice/by-name/devcfg                flags=slotselect;display="Devcfg";advbackup=1
+/storsec            emmc    /dev/block/bootdevice/by-name/storsec               flags=slotselect;display="Storsec";advbackup=1
+/aop                emmc    /dev/block/bootdevice/by-name/aop                   flags=slotselect;display="AOP";advbackup=1
+/qupfw              emmc    /dev/block/bootdevice/by-name/qupfw                 flags=slotselect;display="QUPFW";advbackup=1
+/sid                emmc    /dev/block/bootdevice/by-name/sid                   flags=slotselect;display="SID";advbackup=1
+/laf                emmc    /dev/block/bootdevice/by-name/laf                   flags=slotselect;display="LAF (LG Download Mode)";advbackup=1
+/op                 emmc    /dev/block/bootdevice/by-name/OP                    flags=slotselect;display="OP (LG operator)";advbackup=1
+/akmu               emmc    /dev/block/bootdevice/by-name/akmu                  flags=slotselect;display="AKMU";advbackup=1
+/raw_resources      emmc    /dev/block/bootdevice/by-name/raw_resources         flags=slotselect;display="Raw Resources";advbackup=1
+/mdtp               emmc    /dev/block/bootdevice/by-name/mdtp                  flags=slotselect;display="MDTP";advbackup=1
+/mdtpsecapp         emmc    /dev/block/bootdevice/by-name/mdtpsecapp            flags=slotselect;display="MDTP Secapp";advbackup=1
+
+# --- Per-handset data. Factory-written, unique to THIS handset, and not present
+# in any downloadable image. Worth dumping. Do NOT restore modemst1/modemst2/fsg
+# over working ones — stale radio NV is a way to CREATE the IMEI loss you were
+# insuring against. An EDL firehose dump covers this whole group too, and also
+# captures the GPT, which TWRP cannot back up at all. ---
+/modemst1           emmc    /dev/block/bootdevice/by-name/modemst1              flags=display="Modem NV 1";advbackup=1
+/modemst2           emmc    /dev/block/bootdevice/by-name/modemst2              flags=display="Modem NV 2";advbackup=1
+/fsg                emmc    /dev/block/bootdevice/by-name/fsg                   flags=display="FSG (radio golden copy)";advbackup=1
+/fsc                emmc    /dev/block/bootdevice/by-name/fsc                   flags=display="FSC";advbackup=1
+/drm                emmc    /dev/block/bootdevice/by-name/drm                   flags=display="DRM keys (Widevine)";advbackup=1
+/p_persist_lg       emmc    /dev/block/bootdevice/by-name/p_persist_lg          flags=display="LG Persist";advbackup=1
+/sec                emmc    /dev/block/bootdevice/by-name/sec                   flags=display="Sec";advbackup=1
+/ssd                emmc    /dev/block/bootdevice/by-name/ssd                   flags=display="SSD keys";advbackup=1
+/ddr                emmc    /dev/block/bootdevice/by-name/ddr                   flags=display="DDR training";advbackup=1
+/cdt                emmc    /dev/block/bootdevice/by-name/cdt                   flags=display="CDT";advbackup=1
+
+# --- State / provisioning. frp holds Factory Reset Protection: restoring a
+# stale copy can reassert a Google account lock on a device you legitimately
+# reset. devinfo carries bootloader unlock state. Dump freely, restore never,
+# unless you specifically know why. ---
+/frp                emmc    /dev/block/bootdevice/by-name/frp                   flags=display="FRP";advbackup=1
+/devinfo            emmc    /dev/block/bootdevice/by-name/devinfo               flags=display="Devinfo";advbackup=1
+
+# --- Qualcomm / LG platform partitions. Usually small or zero-filled on a
+# shipping handset; here for completeness rather than because they are known to
+# matter. ---
+/apdp               emmc    /dev/block/bootdevice/by-name/apdp                  flags=display="APDP";advbackup=1
+/msadp              emmc    /dev/block/bootdevice/by-name/msadp                 flags=display="MSADP";advbackup=1
+/spunvm             emmc    /dev/block/bootdevice/by-name/spunvm                flags=display="SPUNVM";advbackup=1
+/toolsfv            emmc    /dev/block/bootdevice/by-name/toolsfv               flags=display="Toolsfv";advbackup=1
+/limits             emmc    /dev/block/bootdevice/by-name/limits                flags=display="Limits";advbackup=1
+/dip                emmc    /dev/block/bootdevice/by-name/dip                   flags=display="DIP";advbackup=1
+/logfs              emmc    /dev/block/bootdevice/by-name/logfs                 flags=display="LogFS";advbackup=1
+/logdump            emmc    /dev/block/bootdevice/by-name/logdump               flags=display="Logdump";advbackup=1
+/sns                emmc    /dev/block/bootdevice/by-name/sns                   flags=display="Sensors";advbackup=1
+/carrier            emmc    /dev/block/bootdevice/by-name/carrier               flags=display="Carrier";advbackup=1
+/power              emmc    /dev/block/bootdevice/by-name/power                 flags=display="Power";advbackup=1
+/fota               emmc    /dev/block/bootdevice/by-name/fota                  flags=display="FOTA";advbackup=1
+/ftm                emmc    /dev/block/bootdevice/by-name/ftm                   flags=display="FTM";advbackup=1
+/mpt                emmc    /dev/block/bootdevice/by-name/mpt                   flags=display="MPT";advbackup=1
+/rct                emmc    /dev/block/bootdevice/by-name/rct                   flags=display="RCT";advbackup=1
+/srtc               emmc    /dev/block/bootdevice/by-name/srtc                  flags=display="SRTC";advbackup=1
+/sti                emmc    /dev/block/bootdevice/by-name/sti                   flags=display="STI";advbackup=1
+/eksst              emmc    /dev/block/bootdevice/by-name/eksst                 flags=display="EKSST";advbackup=1
+/els                emmc    /dev/block/bootdevice/by-name/els                   flags=display="ELS";advbackup=1
