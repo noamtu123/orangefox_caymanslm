@@ -8,6 +8,7 @@ dumped files/
 fox/
 out/
 orangefox-sync/
+prebuilt/
 logs/
 build-edl.log
 build-edl.err.log

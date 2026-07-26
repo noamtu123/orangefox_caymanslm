@@ -42,6 +42,24 @@ Built in WSL — there is no CI. After a `repo sync`, run the repo-root
 source build/envsetup.sh && lunch twrp_caymanslm-ap2a-eng && mka recoveryimage
 ```
 
+This emits **both** outputs in `$OUT`:
+
+| Output | Use |
+|---|---|
+| `OrangeFox-R12.0-Unofficial-caymanslm.img` | `fastboot boot` for testing, or Flash Recovery |
+| `OrangeFox-R12.0-Unofficial-caymanslm.zip` | installer — also deploys the addon payload |
+
+The zip bundles **Magisk 30.7**, pinned by version and SHA256 in `apply-fixes.sh`
+and fetched on demand into the gitignored `prebuilt/` cache. The same file is
+shipped as both `Magisk.zip` and `uninstall.zip`, which is how upstream does it.
+
+`vendorsetup.sh` must stay **LF-only**. Shell — unlike make and XML — does not
+strip a trailing CR, so CRLF there appends `\r` to every exported value: it
+silently defeated the `= "1"` flag tests, put a literal CR inside the recovery
+zip's *filename* via `FOX_BUILD_TYPE`, and wrote
+`RECOVERY_PARTITION=...recovery^M` into the ramdisk's `fox.cfg`. `.gitattributes`
+pins LF; don't let an editor convert it back.
+
 ## Flashing (LM-G910EMW)
 
 A/B device with dedicated `recovery_a` / `recovery_b` partitions.
@@ -71,6 +89,7 @@ A/B device with dedicated `recovery_a` / `recovery_b` partitions.
   flashing `OrangeFox-R12.0-Unofficial-caymanslm.zip` from within OrangeFox, or
   by copying those files out of the zip to `/sdcard` by hand. They live on
   userdata, so this only needs doing once per `/data` wipe.
+  Prefer the zip when installing normally — it is the image plus that payload.
 
 ### Android EDL reboot
 

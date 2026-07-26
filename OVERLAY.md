@@ -26,5 +26,6 @@ sync run `./apply-fixes.sh` (in the repo root), which copies `overlay/` over `~/
 | `patches/caymanslm-skip-empty-theme-reload.patch` | skips the post-decrypt `reapply_settings` theme reload entirely — /data auto-decrypts before the first GUI parse, so the custom theme (`/sdcard/Fox/theme/ui.zip`) and `/persist/.foxs` settings are already loaded; avoids a full second UI parse (~2s faster boot) |
 | `kernel-patches/caymanslm-edl-warm-reset.patch` | enables Qualcomm EDL on this LG kernel and preserves its EDL cookies with a warm reset |
 | `overlay/bootable/recovery/gui/theme/portrait_hdpi/images/Default/About/maintainer.png` | noamtu123's OrangeFox About-page maintainer avatar |
+| `vendor/recovery/Files/Magisk.zip` | pinned to **Magisk 30.7** (upstream bundles an older build). Not an overlay file — `apply-fixes.sh` fetches the release apk by version + SHA256 into the gitignored `prebuilt/` cache and copies it in, keeping the 11 MB blob out of git. The apk is itself the recovery-flashable zip, and the build ships it as both `Magisk.zip` and `uninstall.zip` |
 
 Everything is here — there are **no forks**. `apply-fixes.sh` restores all of it after a sync.

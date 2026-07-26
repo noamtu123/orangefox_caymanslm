@@ -40,6 +40,34 @@ if [ -f "$KEYSTORE_INIT_OUT" ]; then
   echo "  refreshed generated keystore2 init"
 fi
 
+# Magisk addon that the installer zip drops in sdcard/Fox/FoxFiles/ (the build
+# uses the same file for both Magisk.zip and uninstall.zip). Upstream
+# vendor/recovery bundles an older Magisk, and `repo sync` restores it, so pin
+# the version we ship here. The Magisk apk IS the recovery-flashable zip -- it
+# carries META-INF/com/google/android/update-binary -- so no repackaging is
+# needed. Cached under prebuilt/ (gitignored) to keep the 11 MB blob out of git.
+MAGISK_VER="30.7"
+MAGISK_SHA256="e0d32d2123532860f97123d927b1bb86c4e08e6fd8a48bfc6b5bee0afae9ebd5"
+MAGISK_URL="https://github.com/topjohnwu/Magisk/releases/download/v${MAGISK_VER}/Magisk-v${MAGISK_VER}.apk"
+MAGISK_CACHE="$HERE/prebuilt/Magisk-v${MAGISK_VER}.apk"
+
+magisk_cache_ok() {
+  [ -f "$MAGISK_CACHE" ] &&
+    echo "$MAGISK_SHA256  $MAGISK_CACHE" | sha256sum -c --status 2>/dev/null
+}
+
+if ! magisk_cache_ok; then
+  echo "  fetching Magisk $MAGISK_VER ..."
+  mkdir -p "$(dirname "$MAGISK_CACHE")"
+  curl -fL --retry 3 -o "$MAGISK_CACHE" "$MAGISK_URL"
+  magisk_cache_ok || {
+    echo "error: Magisk $MAGISK_VER failed checksum verification" >&2
+    exit 1
+  }
+fi
+cp -f "$MAGISK_CACHE" "$FOX/vendor/recovery/Files/Magisk.zip"
+echo "  installed Magisk $MAGISK_VER as the update-zip Magisk/uninstall addon"
+
 apply_repo_patch() {
   local repo="$1"
   local patch="$2"
