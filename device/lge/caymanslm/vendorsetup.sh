@@ -5,7 +5,7 @@ export FOX_BUILD_TYPE="${FOX_BUILD_TYPE:-Unofficial}"
 
 # Build the flashable installer zip alongside the raw recovery image.
 # The zip is the only thing that deploys the addon payload to userdata:
-#   sdcard/Fox/FoxFiles/{Magisk.zip,uninstall.zip,AromaFM/AromaFM.zip}
+#   sdcard/Fox/FoxFiles/{Magisk.zip,uninstall.zip}   (AromaFM removed, see below)
 #   sdcard/Fox/fox.bashrc
 # A bare recovery.img flash writes the partition and nothing else, which is why
 # Fox Addons then reports "file doesn't exist" for Install/Uninstall Magisk.
