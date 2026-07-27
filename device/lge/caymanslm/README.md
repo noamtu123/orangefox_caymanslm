@@ -85,16 +85,17 @@ A/B device with dedicated `recovery_a` / `recovery_b` partitions.
   this repo.
 - Flashing the bare `recovery.img` does **not** deploy the Fox addons. The
   installer zip carries `sdcard/Fox/FoxFiles/{Magisk.zip,uninstall.zip}` and
-  `sdcard/Fox/fox.bashrc`; a raw image flash writes only the partition.
-  AromaFM is deliberately **not** shipped — it renders straight to a framebuffer
-  this DRM/KMS-only panel does not have, so it segfaulted on every run. See
-  `FOX_DELETE_AROMAFM` in `vendorsetup.sh`. Until those files exist, Fox Addons → Install/Uninstall
-  Magisk correctly reports *"file doesn't exist! please reflash recovery using
-  the installation zip"*. That message is accurate, not a build fault. Fix it by
-  flashing `OrangeFox-R12.0-Unofficial-caymanslm.zip` from within OrangeFox, or
+  `sdcard/Fox/fox.bashrc`; a raw image flash writes only the partition. Until
+  those files exist, Fox Addons → Install/Uninstall Magisk correctly reports
+  *"file doesn't exist! please reflash recovery using the installation zip"*.
+  That message is accurate, not a build fault. Fix it by flashing
+  `OrangeFox-R12.0-Unofficial-caymanslm.zip` from within OrangeFox, or
   by copying those files out of the zip to `/sdcard` by hand. They live on
   userdata, so this only needs doing once per `/data` wipe.
   Prefer the zip when installing normally — it is the image plus that payload.
+  AromaFM is deliberately **not** part of that payload: it renders straight to
+  a framebuffer this DRM/KMS-only panel does not have, so it segfaulted on
+  every run. See `FOX_DELETE_AROMAFM` in `vendorsetup.sh`.
 
 ### Android EDL reboot
 
