@@ -1,0 +1,70 @@
+diff --git a/gui/theme/portrait_hdpi/pages/mount.xml b/gui/theme/portrait_hdpi/pages/mount.xml
+index 2c15dc91..7e8be48c 100644
+--- a/gui/theme/portrait_hdpi/pages/mount.xml
++++ b/gui/theme/portrait_hdpi/pages/mount.xml
+@@ -376,6 +376,21 @@
+ 				<action function="set">tw_gui_pattern_grid_size=6</action>
+ 			</button>
+ 
++			<!-- Skip decryption; see the note in the decrypt_page template. This page
++			     has no keyboard, so the standard slider position is clear: the pattern
++			     grid ends at row4_1a_y + pattern_size and the grid-size buttons sit at
++			     row_btn1_y, leaving slider_np_y between them. -->
++			<text style="caption">
++				<placement x="%center_x%" y="%slider_text_np_y%" placement="5"/>
++				<text>Swipe to skip decryption</text>
++			</text>
++
++			<slider style="slider_action">
++				<placement x="%center_x%" y="%slider_np_y%" placement="5"/>
++				<action function="set">tw_page_done=1</action>
++				<action function="page">decrypt_redirect</action>
++			</slider>
++
+ 			<template name="gestures"/>
+ 
+ 			<action>
+diff --git a/gui/theme/portrait_hdpi/pages/templates/templates.xml b/gui/theme/portrait_hdpi/pages/templates/templates.xml
+index 9dd03df7..f4fab19a 100644
+--- a/gui/theme/portrait_hdpi/pages/templates/templates.xml
++++ b/gui/theme/portrait_hdpi/pages/templates/templates.xml
+@@ -888,6 +888,23 @@
+ 				<action function="page">decrypt_redirect</action>
+ 			</button>
+ 
++			<!-- Skip decryption: leave /data encrypted and carry on into recovery.
++			     Home and Back already do exactly this (tw_page_done=1 +
++			     decrypt_redirect, which is a no-op page at startup so runPages
++			     returns), but nothing on screen says so. A slider makes it
++			     discoverable and needs a deliberate gesture, so it cannot be hit by
++			     accident while typing a PIN. -->
++			<text style="caption">
++				<placement x="%center_x%" y="%decrypt_skip_text_y%" placement="5"/>
++				<text>Swipe to skip decryption</text>
++			</text>
++
++			<slider style="slider_action">
++				<placement x="%center_x%" y="%decrypt_skip_slider_y%" placement="5"/>
++				<action function="set">tw_page_done=1</action>
++				<action function="page">decrypt_redirect</action>
++			</slider>
++
+ 			<template name="gestures"/>
+ 			
+ 			<!-- Crutch; TWRP can't focus on right input so just prevent user from tapping anywhere except 
+diff --git a/gui/theme/portrait_hdpi/resources/vars.xml b/gui/theme/portrait_hdpi/resources/vars.xml
+index 7dcffc29..fc4271e5 100644
+--- a/gui/theme/portrait_hdpi/resources/vars.xml
++++ b/gui/theme/portrait_hdpi/resources/vars.xml
+@@ -488,6 +488,11 @@
+ 		
+ 		<!-- Keyboard -->
+ 		<variable name="keyboard_y" value="%screen_h%-788"/>
++		<!-- Skip-decryption slider on the credential pages. Anchored to the keyboard
++		     because the standard slider_np_y / slider_text_np_y (screen_h-534 and
++		     -642) fall INSIDE the keyboard area on the decrypt layout. -->
++		<variable name="decrypt_skip_text_y" value="%keyboard_y%-270"/>
++		<variable name="decrypt_skip_slider_y" value="%keyboard_y%-150"/>
+ 		<variable name="keyboard_terminal_y" value="%screen_h%-884"/>
+ 		<variable name="keyboard_num_y" value="%screen_h%-900"/>
+ 		<variable name="keyboard_term_num_y" value="%screen_h%-992"/>

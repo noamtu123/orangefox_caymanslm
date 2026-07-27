@@ -16,7 +16,14 @@
 /product            ext4    product                                             flags=logical;slotselect;display="Product"
 
 # --- Userdata: Qualcomm FBE (ICE). Plain fileencryption, no metadata-encrypt. ---
-/data               f2fs    /dev/block/bootdevice/by-name/userdata              flags=fileencryption=ice;sysfs_path="/sys/devices/platform/soc/1d84000.ufshc";reservedsize=128M
+# The stock/LineageOS fstab also carries sysfs_path="/sys/devices/platform/soc/
+# 1d84000.ufshc" and reservedsize=128M here. Both are fs_mgr flags that TWRP
+# does not implement -- reservedsize appears nowhere in the recovery source, and
+# sysfs_path is only ever ignored (Sysfs_Entry is populated from the *device*
+# field for /devices/-style entries, not from this flag). Carrying them made
+# Process_TW_Flags print two red "Unhandled flag" errors on every boot, which
+# reads as a fault to anyone watching. Dropped: they changed nothing.
+/data               f2fs    /dev/block/bootdevice/by-name/userdata              flags=fileencryption=ice
 /metadata           ext4    /dev/block/bootdevice/by-name/metadata              flags=display="Metadata";advbackup=1
 
 # --- External storage / OTG (sysfs voldmanaged; sdcard is NOT internal sda) ---

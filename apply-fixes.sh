@@ -94,7 +94,8 @@ for PATCH in \
   "$HERE/patches/caymanslm-three-channel-flashlight.patch" \
   "$HERE/patches/bootloader-message-misc-fallback.patch" \
   "$HERE/patches/caymanslm-battery-charge-responsiveness.patch" \
-  "$HERE/patches/caymanslm-flashimage-options-listbox.patch"; do
+  "$HERE/patches/caymanslm-flashimage-options-listbox.patch" \
+  "$HERE/patches/caymanslm-decrypt-skip-slider.patch"; do
   apply_repo_patch "$RECOVERY_REPO" "$PATCH"
 done
 
