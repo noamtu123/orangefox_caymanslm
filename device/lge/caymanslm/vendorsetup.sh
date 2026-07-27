@@ -24,6 +24,17 @@ export OF_MAINTAINER="noamtu123"
 # (CET-1;CEST,...), which shows ~2 h behind local time here. Israel (IST/IDT).
 export OF_DEFAULT_TIMEZONE="IST-2IDT,M3.4.4/26,M10.5.0"
 
+# AromaFM cannot work on this device, so don't ship it. Its update-binary is a
+# stripped 32-bit ARM static ELF from 2015 that draws its own UI straight to the
+# framebuffer: `strings` shows only /dev/graphics/fb0 and /dev/fb0, and zero DRM
+# symbols (no libdrm, no drmModeGetResources, no /dev/dri). This panel is
+# DRM/KMS-only -- /dev/graphics does not exist and neither does /dev/fb0, just
+# /dev/dri/card0 -- so the open fails, the old code does not check, and the
+# updater dies with SIGSEGV: "Updater process ended with signal: 11". It is not
+# fixable short of rewriting a stripped binary, and leaving it in only gives
+# every user a red "Failed" screen the first time they tap it.
+export FOX_DELETE_AROMAFM=1
+
 export FOX_RECOVERY_INSTALL_PARTITION=/dev/block/bootdevice/by-name/recovery
 export FOX_USE_BASH_SHELL=1
 export FOX_USE_LZ4_BINARY=1
