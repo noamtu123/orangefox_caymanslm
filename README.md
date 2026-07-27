@@ -21,7 +21,7 @@ It is recommended to back up your stock `boot` and `recovery` partitions before 
 
 LG's bootloader rejects `fastboot flash recovery` on this device even when
 unlocked, so installation goes through the zip. The zip is also what writes the
-Fox Addons payload (`Magisk.zip`, `uninstall.zip`, AromaFM) to internal storage
+Fox Addons payload (`Magisk.zip`, `uninstall.zip`) to internal storage
 — flash only the `.img` and Fox Addons will correctly report *"file doesn't
 exist"* when you try to install Magisk.
 
