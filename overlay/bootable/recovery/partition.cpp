@@ -35,6 +35,7 @@
 #include <grp.h>
 #include <iostream>
 #include <libgen.h>
+#include <vector>
 #include <pwd.h>
 #include <zlib.h>
 #include <sstream>
@@ -1813,6 +1814,65 @@ static bool twp_is_protected_process(const char* comm) {
 	       strcmp(comm, "adbd") == 0 || strcmp(comm, "ueventd") == 0;
 }
 
+static int twp_kill_mount_users(const std::string& mount_point, int sig);
+
+// Every mount point currently backed by |device|, in /proc/mounts order.
+// A partition can be mounted more than once: /data is also mounted at /sdcard
+// (its /media/0 subtree), and once decryption succeeds OrangeFox stacks a
+// second /sdcard on top of the first.
+static std::vector<std::string> twp_mounts_of_device(const std::string& device) {
+	std::vector<std::string> mounts;
+	if (device.empty())
+		return mounts;
+
+	FILE* f = fopen("/proc/mounts", "re");
+	if (!f)
+		return mounts;
+
+	char dev[4096], mnt[4096];
+	while (fscanf(f, "%4095s %4095s%*[^\n]", dev, mnt) == 2) {
+		if (device == dev)
+			mounts.push_back(mnt);
+	}
+	fclose(f);
+	return mounts;
+}
+
+static bool twp_device_is_mounted(const std::string& device) {
+	return !twp_mounts_of_device(device).empty();
+}
+
+// Unmount every mount backed by |device|, last-mounted first so stacked and
+// bind mounts go before the parent they keep busy.
+//
+// This matters because mkfs refuses to touch a device that appears ANYWHERE in
+// /proc/mounts, not merely at the mount point we care about. Leaving the second
+// /sdcard behind makes make_f2fs abort with:
+//     Info: Mounted device!
+//     Error: Not available on mounted device!
+// while TWPartition::Is_Mounted() -- which only consults the mount point --
+// happily reports the partition as unmounted.
+static bool twp_unmount_all_of_device(const std::string& device, int flags) {
+	for (int pass = 0; pass < 16; ++pass) {
+		std::vector<std::string> mounts = twp_mounts_of_device(device);
+		if (mounts.empty())
+			return true;
+
+		const std::string mp = mounts.back();
+		if (umount2(mp.c_str(), flags) == 0)
+			continue;
+
+		LOGINFO("UnMount: umount2('%s') failed: %s\n", mp.c_str(), strerror(errno));
+		if (twp_kill_mount_users(mp, SIGKILL) == 0) {
+			// Nothing left to kill and it still will not go: stop rather than
+			// spin, and let the caller report the failure honestly.
+			return false;
+		}
+		usleep(200000);
+	}
+	return !twp_device_is_mounted(device);
+}
+
 // A lazy unmount (umount -l) detaches the tree from /proc/mounts but keeps the
 // filesystem's superblock -- and therefore the backing block device's
 // bd_holder -- alive. mkfs opens the device O_EXCL and fails with EBUSY
@@ -1956,6 +2016,15 @@ bool TWPartition::UnMount(bool Display_Error, int flags) {
 			umount2(Mount_Point.c_str(), flags);
 		}
 
+		// Clear any OTHER mount of the same device. Unmounting Mount_Point and
+		// a single Symlink_Mount_Point is not enough: /data is also mounted at
+		// /sdcard (its /media/0 subtree), and once decryption succeeds a second
+		// /sdcard gets stacked on the first. mkfs rejects a device that appears
+		// anywhere in /proc/mounts, so a survivor here is fatal to Format Data
+		// even though Is_Mounted() reports the partition as unmounted.
+		if (twp_is_forcible_mount_point(Mount_Point))
+			twp_unmount_all_of_device(Actual_Block_Device, flags);
+
 		if (Is_Mounted()) {
 			if (twp_is_forcible_mount_point(Mount_Point)) {
 				LOGINFO("DEBUG: attempting again to unmount '%s'\n", Mount_Point.c_str());
@@ -1963,11 +2032,13 @@ bool TWPartition::UnMount(bool Display_Error, int flags) {
 				sleep(1);
 				if (!Is_Mounted()) {
 					// Detached from the tree, but a lazy unmount keeps the
-					// superblock alive. If the block device is still claimed a
-					// subsequent mkfs will fail with EBUSY, so do not report
-					// success -- that is what silently broke Format Data.
-					if (twp_block_device_claimed(Actual_Block_Device)) {
-						LOGINFO("'%s' was only unmounted lazily and block device %s is still claimed; reporting failure\n",
+					// superblock alive. If the block device is still claimed, or
+					// still mounted somewhere else, a subsequent mkfs will fail,
+					// so do not report success -- that is what silently broke
+					// Format Data.
+					if (twp_block_device_claimed(Actual_Block_Device) ||
+					    twp_device_is_mounted(Actual_Block_Device)) {
+						LOGINFO("'%s' was only unmounted lazily and block device %s is still claimed or mounted elsewhere; reporting failure\n",
 							Mount_Point.c_str(), Actual_Block_Device.c_str());
 						if (Display_Error)
 							gui_msg(Msg(msg::kError, "fail_unmount=Failed to unmount '{1}' ({2})")(Mount_Point)("still in use"));
@@ -1982,6 +2053,16 @@ bool TWPartition::UnMount(bool Display_Error, int flags) {
 				LOGINFO("Unable to unmount '%s'\n", Mount_Point.c_str());
 			return false;
 		} else {
+			// The mount point is gone, but mkfs looks at the device. Refuse to
+			// claim success while any other mount of it survives.
+			if (twp_is_forcible_mount_point(Mount_Point) &&
+			    twp_device_is_mounted(Actual_Block_Device)) {
+				LOGINFO("'%s' is unmounted but %s is still mounted elsewhere; reporting failure\n",
+					Mount_Point.c_str(), Actual_Block_Device.c_str());
+				if (Display_Error)
+					gui_msg(Msg(msg::kError, "fail_unmount=Failed to unmount '{1}' ({2})")(Mount_Point)("still mounted elsewhere"));
+				return false;
+			}
 			return true;
 		}
 	} else {
