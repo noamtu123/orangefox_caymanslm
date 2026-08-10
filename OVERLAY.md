@@ -10,11 +10,11 @@ sync run `./apply-fixes.sh` (in the repo root), which copies `overlay/` over `~/
 
 | File | Fix |
 |---|---|
-| `system/core/debuggerd/Android.bp` | `recovery_available` on crash_dump/tombstoned (native crash capture in recovery) |
+| `system/core/debuggerd/Android.bp` | `recovery_available` on crash_dump/tombstoned (native crash capture in recovery). The service is defined and started by `device/lge/caymanslm/rootdir/etc/init.recovery.caymanslm.rc`, which also points its output at `/tombstones` and `/anr` on the ramdisk — tombstoned resolves that path once at startup, so keeping it off `/data` is what stops it pinning the userdata superblock and breaking Format Data |
 | `external/strace/Android.bp` | `recovery_available` on strace (debug tooling) |
 | `system/logging/logd/main.cpp` | logd DropPrivs `PLOG(FATAL)`→`ERROR` (logd/logcat work in recovery) |
 | `frameworks/native/cmds/servicemanager/ServiceManager.cpp` | skip VINTF-stability add-gate so keystore2 registers (**load-bearing for FBE decrypt**) |
-| `bootable/recovery/partition.cpp` | widen `Decrypt_DE` retry window (service-startup timing) |
+| `bootable/recovery/partition.cpp` | widen `Decrypt_DE` retry window (service-startup timing); **`UnMount()` correctness**: reap processes holding the mount point and retry a real unmount before the lazy fallback, and if it still falls back to `umount -l`, probe the block device with `O_EXCL` (the way `mkfs` does) and return failure instead of a false success. Upstream returns `true` whenever `Is_Mounted()` goes false, but a lazy unmount only detaches the tree — the superblock, and so the device's `bd_holder`, stays alive, so `make_f2fs` fails with `Error: In use by the system!` and Format Data dies with `ERROR: 255` until the recovery reboots. Reaping is limited to `/data`, `/sdcard` and `/data/media/0`, and never signals `init`, `recovery`, `adbd` or `ueventd` |
 | `bootable/recovery/partitionmanager.cpp` | include `android_filesystem_config.h` for `AID_MEDIA_RW` (compile fix) |
 | `bootable/recovery/twrp-functions.cpp` | reliable fastbootd BCB command and LG `/persist/time/ats_2` clock source |
 | `bootable/recovery/etc/init.recovery.logd.rc` | add logd control socket |
