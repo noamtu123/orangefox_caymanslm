@@ -57,8 +57,40 @@ on fs
 # /system/etc/init/tombstoned.rc, but recovery init never imports it and its
 # service has no start trigger, so it never runs. Define + start it here. With
 # crash_dump64 in the ramdisk (see BoardConfig crash_dump.recovery), this makes
-# native aborts (logd, keystore2, ...) produce tombstones. Read them by shadowing
-# encrypted /data/tombstones with a tmpfs bind-mount at runtime.
+# native aborts (logd, keystore2, ...) produce tombstones.
+#
+# The output directories deliberately live on the ramdisk, NOT on /data.
+# tombstoned's CrashQueue opens its directory exactly once, in a static
+# initializer (open(dir, O_DIRECTORY|O_RDONLY|O_CLOEXEC) in tombstoned.cpp), and
+# writes every artifact through that fd with openat(). Whatever the path
+# resolves to at process start is pinned for the life of the process, so
+# resolving it through a ramdisk symlink keeps the fd off the userdata
+# filesystem for good.
+#
+# Without this, /data/tombstones resolved onto the userdata f2fs and broke
+# Format Data (found 2026-08-10):
+#   * At `on init` /data is not mounted yet, so the open failed and tombstoned
+#     hit PLOG(FATAL). Being `class core`, init restarted it in a loop until
+#     OrangeFox mounted /data, at which point it succeeded and pinned an fd on
+#     the f2fs superblock for the rest of the session.
+#   * That made `umount /data` return EBUSY. TWPartition::UnMount then falls
+#     back to `umount -l` and returns true, because Is_Mounted() only consults
+#     /proc/mounts -- but a lazy unmount keeps the superblock, and therefore the
+#     block device's bd_holder, alive. make_f2fs's O_EXCL open then failed with
+#     "Error: In use by the system!" and Format Data died with ERROR: 255,
+#     staying broken until the recovery rebooted.
+# The `umount -l`-reports-success path is upstream OrangeFox behaviour and is
+# still latent: any other process holding /data would reproduce it.
+#
+# Side benefit: tombstones are now readable at /tombstones and /anr whether or
+# not /data is mounted or decrypted, which replaces the old workaround of
+# shadowing encrypted /data/tombstones with a tmpfs bind-mount at runtime.
+on early-init
+    mkdir /tombstones 0755 root system
+    mkdir /anr 0755 root system
+    symlink /tombstones /data/tombstones
+    symlink /anr /data/anr
+
 on init
     start tombstoned
 

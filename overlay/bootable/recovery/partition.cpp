@@ -29,7 +29,9 @@
 #include <sys/vfs.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <grp.h>
 #include <iostream>
 #include <libgen.h>
@@ -1796,6 +1798,134 @@ bool TWPartition::Bind_Mount(bool Display_Error) {
 	return true;
 }
 
+// True when mount_point is one of the storage mount points that UnMount() is
+// allowed to clear by force. Reaping holders is only safe where we know the
+// holders are expendable; everything else keeps the stock behaviour.
+static bool twp_is_forcible_mount_point(const std::string& mount_point) {
+	return mount_point == "/data" || mount_point == "/sdcard" ||
+	       mount_point == "/data/media/0";
+}
+
+// Never signal these: killing the GUI, init, ueventd or the running adb server
+// would be far worse than a failed unmount.
+static bool twp_is_protected_process(const char* comm) {
+	return strcmp(comm, "init") == 0 || strcmp(comm, "recovery") == 0 ||
+	       strcmp(comm, "adbd") == 0 || strcmp(comm, "ueventd") == 0;
+}
+
+// A lazy unmount (umount -l) detaches the tree from /proc/mounts but keeps the
+// filesystem's superblock -- and therefore the backing block device's
+// bd_holder -- alive. mkfs opens the device O_EXCL and fails with EBUSY
+// ("Error: In use by the system!") while that is true, so Is_Mounted()
+// returning false is NOT a sufficient post-condition for UnMount(). Probe the
+// device exactly the way mkfs does.
+static bool twp_block_device_claimed(const std::string& device) {
+	if (device.empty())
+		return false;
+	int fd = open(device.c_str(), O_RDONLY | O_EXCL | O_CLOEXEC);
+	if (fd >= 0) {
+		close(fd);
+		return false;
+	}
+	return errno == EBUSY;
+}
+
+// Signal every process holding a file, cwd or root under mount_point so that a
+// real (non-lazy) unmount can succeed. A single stray holder -- e.g. tombstoned
+// keeping /data/tombstones open -- otherwise forces the lazy path and leaves
+// the block device claimed for the rest of the session.
+static int twp_kill_mount_users(const std::string& mount_point, int sig) {
+	if (mount_point.empty() || mount_point == "/")
+		return 0;
+
+	std::string prefix = mount_point;
+	if (prefix[prefix.size() - 1] != '/')
+		prefix += "/";
+
+	DIR* proc = opendir("/proc");
+	if (!proc)
+		return 0;
+
+	int killed = 0;
+	pid_t self = getpid();
+	struct dirent* pent;
+
+	while ((pent = readdir(proc)) != NULL) {
+		if (pent->d_name[0] < '0' || pent->d_name[0] > '9')
+			continue;
+		pid_t pid = (pid_t)atoi(pent->d_name);
+		if (pid <= 1 || pid == self)
+			continue;
+
+		std::string base = "/proc/";
+		base += pent->d_name;
+		char link[4096];
+		bool holds = false;
+
+		const char* nodes[] = { "cwd", "root", "exe" };
+		for (size_t i = 0; i < 3 && !holds; ++i) {
+			std::string p = base + "/" + nodes[i];
+			ssize_t n = readlink(p.c_str(), link, sizeof(link) - 1);
+			if (n > 0) {
+				link[n] = '\0';
+				std::string t(link);
+				if (t == mount_point || t.compare(0, prefix.size(), prefix) == 0)
+					holds = true;
+			}
+		}
+
+		if (!holds) {
+			std::string fddir = base + "/fd";
+			DIR* fds = opendir(fddir.c_str());
+			if (fds) {
+				struct dirent* fent;
+				while (!holds && (fent = readdir(fds)) != NULL) {
+					if (fent->d_name[0] == '.')
+						continue;
+					std::string p = fddir + "/" + fent->d_name;
+					ssize_t n = readlink(p.c_str(), link, sizeof(link) - 1);
+					if (n > 0) {
+						link[n] = '\0';
+						std::string t(link);
+						if (t == mount_point || t.compare(0, prefix.size(), prefix) == 0)
+							holds = true;
+					}
+				}
+				closedir(fds);
+			}
+		}
+
+		if (!holds)
+			continue;
+
+		char comm[64];
+		strcpy(comm, "?");
+		FILE* cf = fopen((base + "/comm").c_str(), "r");
+		if (cf) {
+			if (fgets(comm, sizeof(comm), cf)) {
+				char* nl = strchr(comm, '\n');
+				if (nl)
+					*nl = '\0';
+			}
+			fclose(cf);
+		}
+
+		if (twp_is_protected_process(comm)) {
+			LOGINFO("UnMount: NOT killing protected pid %d (%s) holding '%s'\n",
+				(int)pid, comm, mount_point.c_str());
+			continue;
+		}
+
+		LOGINFO("UnMount: killing pid %d (%s) holding '%s'\n",
+			(int)pid, comm, mount_point.c_str());
+		kill(pid, sig);
+		killed++;
+	}
+
+	closedir(proc);
+	return killed;
+}
+
 bool TWPartition::UnMount(bool Display_Error, int flags) {
 	if (Is_Mounted()) {
 		int never_unmount_system;
@@ -1811,13 +1941,40 @@ bool TWPartition::UnMount(bool Display_Error, int flags) {
 			umount2(Symlink_Mount_Point.c_str(), flags);
 
 		umount2(Mount_Point.c_str(), flags);
+
+		// Busy. Find whoever is holding the mount and retry a real unmount
+		// before falling back to the lazy path, which cannot be undone without
+		// rebooting the recovery.
+		if (Is_Mounted() && twp_is_forcible_mount_point(Mount_Point)) {
+			if (twp_kill_mount_users(Mount_Point, SIGTERM) > 0) {
+				usleep(300000);
+				twp_kill_mount_users(Mount_Point, SIGKILL);
+				usleep(200000);
+			}
+			if (!Symlink_Mount_Point.empty())
+				umount2(Symlink_Mount_Point.c_str(), flags);
+			umount2(Mount_Point.c_str(), flags);
+		}
+
 		if (Is_Mounted()) {
-			if (Mount_Point == "/data" || Mount_Point == "/sdcard" || Mount_Point == "/data/media/0") {
+			if (twp_is_forcible_mount_point(Mount_Point)) {
 				LOGINFO("DEBUG: attempting again to unmount '%s'\n", Mount_Point.c_str());
 				TWFunc::Exec_Cmd("umount -l " + Mount_Point);
 				sleep(1);
-				if (!Is_Mounted())
+				if (!Is_Mounted()) {
+					// Detached from the tree, but a lazy unmount keeps the
+					// superblock alive. If the block device is still claimed a
+					// subsequent mkfs will fail with EBUSY, so do not report
+					// success -- that is what silently broke Format Data.
+					if (twp_block_device_claimed(Actual_Block_Device)) {
+						LOGINFO("'%s' was only unmounted lazily and block device %s is still claimed; reporting failure\n",
+							Mount_Point.c_str(), Actual_Block_Device.c_str());
+						if (Display_Error)
+							gui_msg(Msg(msg::kError, "fail_unmount=Failed to unmount '{1}' ({2})")(Mount_Point)("still in use"));
+						return false;
+					}
 					return true;
+				}
 			}
 			if (Display_Error)
 				gui_msg(Msg(msg::kError, "fail_unmount=Failed to unmount '{1}' ({2})")(Mount_Point)(strerror(errno)));
