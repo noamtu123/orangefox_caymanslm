@@ -103,6 +103,56 @@ BOARD_MKBOOTIMG_ARGS += --header_version $(BOARD_BOOT_HEADER_VERSION)
 BOARD_MKBOOTIMG_ARGS += --ramdisk_offset 0x01000000
 BOARD_MKBOOTIMG_ARGS += --tags_offset 0x00000100
 
+# os_version / os_patch_level in the boot header are LOAD-BEARING FOR FBE
+# DECRYPTION -- they are not cosmetic build metadata.
+#
+# The bootloader passes the *booted image's* header values to the TEE, and
+# Keymaster compares them against the values baked into the FBE key. A key may
+# be upgraded to a HIGHER patch level, never downgraded to a lower one. So the
+# recovery must declare a level >= the level of the ROM that created the key.
+# prepdecrypt cannot fix this: it resetprops ro.build.version.*, but the TEE's
+# value comes from the image header, which no property can influence.
+#
+# The base defaults (PLATFORM_VERSION 14 / PLATFORM_SECURITY_PATCH 2024-09-05)
+# happened to work against stock A12, whose key is 12 / 2022-08 -- older, so the
+# key was simply upgraded upward. They break against LineageOS 22.2, whose key is
+# 15 / 2026-08: newer than the recovery, so the required upgrade is a downgrade
+# and Keymaster refuses it. Observed as (found 2026-08-11):
+#     KeyMasterHalDevice: Begin send cmd failed        resp->status: -62  (KEY_REQUIRES_UPGRADE)
+#     KeyMasterHalDevice: Upgrade key send cmd failed  resp->status: -38  (INVALID_ARGUMENT)
+#     keystore2: Upgrade failed. Error::Km(r#INVALID_ARGUMENT)
+#     recovery: decryptWithKeystoreKey failed / fscrypt_initialize_systemwide_keys returned fail
+# and on-screen as a recovery that cannot decrypt /data at all.
+#
+# BOARD_MKBOOTIMG_ARGS is expanded AFTER INTERNAL_MKBOOTIMG_VERSION_ARGS in
+# build/make/core/Makefile, so these win.
+#
+# Set deliberately FAR AHEAD of any ROM this recovery will ever service, so it
+# never needs bumping when LineageOS ships a monthly security patch or a new
+# Android release. Both fields matter: os_patch_level covers monthly updates,
+# os_version covers major upgrades (an Android 16 ROM would otherwise reintroduce
+# the same failure).
+#
+# Setting it ahead is safe because the recovery never persists an upgraded key.
+# This vold fork writes the upgraded blob to a tmpfs path and has the commit path
+# disabled -- system/vold/KeyStorage.cpp, BeginKeystoreOp():
+#     std::string temp_dir = "/tmp/" + blob_dir + "/";
+#     auto upgraded_blob_file = temp_dir + kFn_keymaster_key_blob;
+#     // auto upgraded_blob_file = dir + "/" + kFn_keymaster_key_blob_upgraded;
+# with CommitUpgradedKey()/DeleteUpgradedKey() commented out. So the key is
+# upgraded in-session only and the ROM's on-disk blob is never rewritten -- which
+# is also why stock A12 kept booting fine for weeks while this recovery was
+# upgrading its 2022-08 key to 2024-09 on every visit.
+#
+# Encoding limits (the header packs these into one 32-bit field at offset 44):
+# version fields are 7 bits each (max 127), and the patch level is
+# ((year-2000) << 4) | month, so the latest representable is 2127-12.
+#
+# Verified on-device 2026-08-11 against LineageOS 22.2's key (15 / 2026-08):
+# "Data successfully decrypted", CE storage readable, zero fscrypt failures.
+BOARD_MKBOOTIMG_ARGS += --os_version 20.0.0
+BOARD_MKBOOTIMG_ARGS += --os_patch_level 2099-12-01
+
 # Ramdisk compression: LZMA shrinks the (currently bloated) recovery ramdisk
 # well below the stock ~28 MB baseline. Paired with OF_USE_LZMA_COMPRESSION in
 # the OrangeFox section. The from-source kernel has LZMA support built in.
@@ -185,9 +235,11 @@ TW_EXCLUDE_MTP := true
 # version from the on-device vendor manifest, with the bundled ramdisk manifest
 # as fallback.
 #
-# Device uses plain FBE (fileencryption=ice). PLATFORM_VERSION /
-# PLATFORM_SECURITY_PATCH are intentionally left to the base defaults;
-# prepdecrypt runs with SETPATCH=false on recovery-partition devices.
+# Device uses plain FBE (fileencryption=ice). prepdecrypt runs with
+# SETPATCH=true here (forced by init.recovery.caymanslm.rc) so it resetprops the
+# installed ROM's OS version and patch level. That covers the *property* side
+# only -- the boot header's os_version/os_patch_level are equally load-bearing
+# and are pinned via BOARD_MKBOOTIMG_ARGS above; see the comment there.
 # -------------------------------------------------------------------------
 TW_INCLUDE_CRYPTO := true
 TW_INCLUDE_CRYPTO_FBE := true
