@@ -39,6 +39,7 @@
 #include <iomanip>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#include <algorithm>
 #include <ctype.h>
 #include <inttypes.h>
 #include <limits.h>
@@ -3791,6 +3792,119 @@ out:
 	close(fd);
 	return ret;
 }
+
+// Qualcomm's gpt-utils moves the UFS boot LUN -- the setting that decides which
+// copy of xbl, the earliest bootloader stage, the chip loads -- by resolving the
+// xbl partition to its block node, deriving the SCSI generic node from that, and
+// issuing UFS_IOCTL_QUERY. Switching to slot B it looks up "xbl_b" and works.
+// Switching to slot A it looks up the legacy names "xbl" and "xblbak", and there
+// it fails on this device, because:
+//
+//   - LG's partition table has no xbl/xblbak, only xbl_a and xbl_b, and
+//   - the "xbl" that does exist under by-name is the non-slot convenience
+//     symlink TWRP creates in TWPartition::Find_Actual_Block_Device(), which
+//     points at another by-name entry rather than at the block node.
+//
+// gpt-utils reads the link once and copies three characters as the device name,
+// so a second by-name hop yields "boo" and it gives up:
+//
+//   gpt_utils_set_xbl_boot_partition: setting /dev/block/bootdevice/by-name/xbl lun as boot lun
+//   get_scsi_node_from_bootdevice : Failed to open /sys/block/boo/device/scsi_generic
+//   gpt_utils_set_xbl_boot_partition: Failed to get scsi node path for xblbak
+//
+// The LUN then never moves and setActiveBootSlot returns EPERM. Pointing both
+// legacy names straight at the resolved nodes lets the same code that already
+// works for slot B work for slot A: measured on caymanslm, `bootctl
+// set-active-boot-slot 0` goes from rc=70 to rc=0, with the UFS query ioctl
+// reaching /dev/sg4 and returning 0.
+//
+// The mapping is fixed -- xbl is slot A's, xblbak is slot B's -- regardless of
+// which slot is active, and it is re-checked on every switch because TWRP's
+// partition scan repoints "xbl" at the active slot behind us.
+static void Ensure_Xbl_Compat_Links() {
+	static const struct { const char* legacy; const char* actual; } kLinks[] = {
+		{ "/dev/block/bootdevice/by-name/xbl", "/dev/block/bootdevice/by-name/xbl_a" },
+		{ "/dev/block/bootdevice/by-name/xblbak", "/dev/block/bootdevice/by-name/xbl_b" },
+	};
+	for (const auto& link : kLinks) {
+		char target[PATH_MAX];
+		if (realpath(link.actual, target) == NULL) {
+			LOGINFO("Ensure_Xbl_Compat_Links: cannot resolve %s: %s\n", link.actual, strerror(errno));
+			continue;
+		}
+
+		struct stat st;
+		if (lstat(link.legacy, &st) == 0) {
+			// Never touch a device that named its own xbl/xblbak partitions.
+			if (!S_ISLNK(st.st_mode))
+				continue;
+			char current[PATH_MAX];
+			ssize_t len = readlink(link.legacy, current, sizeof(current) - 1);
+			if (len > 0) {
+				current[len] = '\0';
+				if (strcmp(current, target) == 0)
+					continue;	// already correct
+			}
+			unlink(link.legacy);
+		}
+
+		if (symlink(target, link.legacy) != 0)
+			LOGINFO("Ensure_Xbl_Compat_Links: cannot link %s -> %s: %s\n",
+				link.legacy, target, strerror(errno));
+		else
+			LOGINFO("Ensure_Xbl_Compat_Links: %s -> %s, so the boot control HAL can move the boot LUN\n",
+				link.legacy, target);
+	}
+}
+
+// Compare the two slots' copies of a partition. Used to decide whether a boot
+// LUN that did not move actually matters: identical images mean it does not.
+// Returns 1 if they match, 0 if they differ, -1 if either could not be read.
+static int Slot_Images_Identical(const string& base) {
+	int fd_a = open(("/dev/block/by-name/" + base + "_a").c_str(), O_RDONLY | O_CLOEXEC);
+	if (fd_a < 0)
+		return -1;
+	int fd_b = open(("/dev/block/by-name/" + base + "_b").c_str(), O_RDONLY | O_CLOEXEC);
+	if (fd_b < 0) {
+		close(fd_a);
+		return -1;
+	}
+
+	int ret = -1;
+	off64_t size_a = lseek64(fd_a, 0, SEEK_END);
+	off64_t size_b = lseek64(fd_b, 0, SEEK_END);
+	if (size_a < 0 || size_b < 0)
+		goto out;
+	if (size_a != size_b) {
+		ret = 0;
+		goto out;
+	}
+	if (lseek64(fd_a, 0, SEEK_SET) != 0 || lseek64(fd_b, 0, SEEK_SET) != 0)
+		goto out;
+
+	{
+		const size_t kChunk = 256 * 1024;
+		std::vector<char> buf_a(kChunk), buf_b(kChunk);
+		off64_t remaining = size_a;
+		while (remaining > 0) {
+			size_t want = (size_t)std::min<off64_t>(remaining, (off64_t)kChunk);
+			if (!android::base::ReadFully(fd_a, buf_a.data(), want) ||
+					!android::base::ReadFully(fd_b, buf_b.data(), want))
+				goto out;
+			if (memcmp(buf_a.data(), buf_b.data(), want) != 0) {
+				ret = 0;
+				goto out;
+			}
+			remaining -= (off64_t)want;
+		}
+		ret = 1;
+	}
+
+out:
+	close(fd_a);
+	close(fd_b);
+	return ret;
+}
 #endif // AB_OTA_UPDATER
 
 void TWPartitionManager::Set_Active_Slot(const string& Slot) {
@@ -3807,10 +3921,14 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
 	// just record whichever slot the bootloader already picked.
 	if (!Active_Slot_Display.empty()) {
 		bool slot_switched = false;
+		// Held back rather than logged as it happens: whether a HAL complaint is
+		// an error at all depends on what the GPT says below.
+		string hal_complaint;
+		Ensure_Xbl_Compat_Links();
 	#ifdef OF_USE_AIDL_BOOT_CONTROL
 		const auto module = BootControlClient::WaitForService();
 		if (module == nullptr) {
-			LOGERR("Error getting bootctrl module.\n");
+			hal_complaint = "no bootctrl module";
 		} else {
 			int32_t slot_number = 0;
 			if (Slot == "B")
@@ -3818,12 +3936,12 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
 			CommandResult result = module->SetActiveBootSlot(slot_number);
 			slot_switched = result.success;
 			if (!slot_switched)
-				LOGERR("SetActiveBootSlot(%d) failed: %s\n", slot_number, result.errMsg.c_str());
+				hal_complaint = "SetActiveBootSlot(" + std::to_string(slot_number) + "): " + result.errMsg;
 		}
 	#else // OF_USE_AIDL_BOOT_CONTROL
 		android::sp<IBootControl> module = IBootControl::getService();
 		if (module == nullptr) {
-			LOGERR("Error getting bootctrl module.\n");
+			hal_complaint = "no bootctrl module";
 		} else {
 			uint32_t slot_number = 0;
 			if (Slot == "B")
@@ -3832,9 +3950,12 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
 			auto ret = module->setActiveBootSlot(slot_number, [&result]
 					(const CommandResult &cb_result) { result = cb_result; });
 			slot_switched = ret.isOk() && result.success;
-			if (!slot_switched)
-				LOGERR("setActiveBootSlot(%u) failed: %s\n", slot_number,
-					ret.isOk() ? result.errMsg.c_str() : ret.description().c_str());
+			if (!slot_switched) {
+				// result.errMsg is a hidl_string and description() a std::string;
+				// pick one before concatenating or the conversion is ambiguous.
+				string reason = ret.isOk() ? string(result.errMsg.c_str()) : ret.description();
+				hal_complaint = "setActiveBootSlot(" + std::to_string(slot_number) + "): " + reason;
+			}
 		}
 	#endif // OF_USE_AIDL_BOOT_CONTROL
 		// Never advertise a switch that did not happen, and never report a
@@ -3857,10 +3978,36 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
 			slot_switched = (confirmed == 1);
 		}
 		if (!slot_switched) {
-			LOGERR("Set_Active_Slot: bootloader was NOT switched to %s; leaving the displayed slot unchanged\n",
-				Slot.c_str());
+			LOGERR("Set_Active_Slot: bootloader was NOT switched to %s (%s); leaving the displayed slot unchanged\n",
+				Slot.c_str(), hal_complaint.empty() ? "no reason given" : hal_complaint.c_str());
 			gui_msg(Msg(msg::kError, "unable_set_boot_slot=Error changing bootloader boot slot to {1}")(Slot));
 			return;
+		}
+		// A switch that worked is not an error, however loudly the HAL grumbled
+		// on the way -- but find out what the grumble cost before dismissing it.
+		//
+		// Qualcomm writes the GPT and then moves the UFS boot LUN so the chip
+		// loads the new slot's xbl, the earliest bootloader stage. When only the
+		// second half fails the device runs one slot's xbl against the other
+		// slot's everything else. That is harmless here because xbl_a and xbl_b
+		// are byte-identical, and it is emphatically not harmless where they are
+		// not -- so check rather than assume, and say so if they differ.
+		if (!hal_complaint.empty()) {
+			LOGINFO("Set_Active_Slot: switched to %s; the boot control HAL had complained (%s)\n",
+				Slot.c_str(), hal_complaint.c_str());
+			for (const string& base : {"xbl", "xbl_config"}) {
+				int identical = Slot_Images_Identical(base);
+				if (identical == 1) {
+					LOGINFO("Set_Active_Slot: %s_a and %s_b are identical, so a boot LUN that did not move changes nothing\n",
+						base.c_str(), base.c_str());
+				} else if (identical == 0) {
+					LOGERR("Set_Active_Slot: %s_a and %s_b DIFFER and the boot LUN may not have moved\n",
+						base.c_str(), base.c_str());
+					gui_msg(Msg(msg::kWarning, "slot_switched_xbl_stale=Slot changed to {1}, but the bootloader stage {2} could not be switched. The device will boot {1} using the other slot's {2}.")(Slot)(base));
+				} else {
+					LOGINFO("Set_Active_Slot: could not compare %s_a and %s_b\n", base.c_str(), base.c_str());
+				}
+			}
 		}
 		DataManager::SetValue("tw_active_slot", Slot); // Doing this outside of this if block may result in a seg fault because the DataManager may not be ready yet
 	}
