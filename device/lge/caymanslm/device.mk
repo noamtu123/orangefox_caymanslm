@@ -91,3 +91,63 @@ PRODUCT_COPY_FILES += \
     $(RECOVERY_ROOT)/vendor/lib64/libssd.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/libssd.so \
     $(RECOVERY_ROOT)/vendor/etc/vintf/manifest.xml:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/etc/vintf/manifest.xml \
     $(RECOVERY_ROOT)/vendor/etc/vintf/manifest/android.hardware.keymaster_gatekeeper_caymanslm.xml:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/etc/vintf/manifest/android.hardware.keymaster_gatekeeper_caymanslm.xml
+
+# -------------------------------------------------------------------------
+# Boot control HAL implementation — REQUIRED FOR SLOT SWITCHING TO WORK.
+#
+# The AOSP boot HAL service falls back to the generic libboot_control, which
+# stores slot state in the `bootloader_control` struct inside the misc
+# partition. LG's bootloader does not read that: like other Qualcomm targets it
+# keeps slot priority in the GPT partition attribute bits. The result is a HAL
+# that accepts setActiveBootSlot(), returns success, updates misc — and changes
+# nothing the bootloader will ever look at. Measured on-device 2026-08-11:
+# after `bootctl set-active-boot-slot 0`, misc showed slot A priority 15 vs
+# slot B 14, while `fastboot getvar current-slot` still reported b.
+# (`fastboot set_active` works because it runs inside the bootloader itself.)
+#
+# bootctrl.sdm845.so is the Qualcomm implementation that drives the GPT
+# attributes. libhardware's hw_get_module("bootctrl") probes
+# bootctrl.<ro.hardware>.so then bootctrl.<ro.board.platform>.so, and this
+# device reports ro.board.platform=sdm845, so the name resolves.
+#
+# Installed under /vendor/lib64, matching the keymaster/gatekeeper blobs above.
+# hw_get_module probes /vendor/lib64/hw as well as /system/lib64/hw, and the
+# boot-hal-1-1 service definition in init.recovery.caymanslm.rc sets
+# LD_LIBRARY_PATH=/vendor/lib64:/system/lib64 so the closure resolves.
+#
+# /system/lib64 is NOT usable for this: system/memory/libion already owns a
+# soong install rule for recovery/root/system/lib64/libion.so, so a
+# PRODUCT_COPY_FILES entry for that path makes ckati fail with "overriding
+# commands for target". Requesting it instead via
+# TARGET_RECOVERY_DEVICE_MODULES += libion does not help either — that registers
+# an install but never pulls the module into the build graph, so no
+# android_recovery_arm64 variant is produced and the file simply never appears.
+# Shipping our own copy under /vendor/lib64 avoids the contested path entirely.
+#
+# ELF closure (verified with readelf, 2026-08-11):
+#   bootctrl.sdm845.so         -> librecovery_updater_msm, liblog, libcutils,
+#                                 libc++, libc, libm, libdl
+#   librecovery_updater_msm.so -> libion, libz, liblog, libcutils, libc++, ...
+#   libion.so                  -> liblog, libc++, libc, libm, libdl
+# Everything not listed below already ships in the ramdisk.
+# See blob-manifest.txt for SHA-256s.
+# -------------------------------------------------------------------------
+# android.hardware.boot@1.0-impl.so is the piece that ties it together, and the
+# base ramdisk does NOT have it. What ships there is
+# android.hardware.boot@1.0-impl-1.1.so, which implements 1.1 and is built on
+# the generic libboot_control — it reads the fstab to find misc and never calls
+# hw_get_module, so bootctrl.sdm845.so would sit unused no matter which service
+# runs. HIDL passthrough loads "<interface>-impl.so" by exact name, so with only
+# the -impl-1.1 variant present the 1.0 service aborts in a restart loop:
+#   LegacySupport: Implementation of android.hardware.boot@1.0::IBootControl/
+#     default is actually android.hardware.boot@1.1::IBootControl, not a
+#     android.hardware.boot@1.0::IBootControl!
+# Stock's impl is the real passthrough shim: it calls hw_get_module("bootctrl")
+# and hands off to bootctrl.sdm845.so. Its whole NEEDED set (libhidlbase,
+# libhardware, libutils, android.hardware.boot@1.0.so, liblog, libc++, bionic)
+# already ships in the ramdisk.
+PRODUCT_COPY_FILES += \
+    $(RECOVERY_ROOT)/vendor/lib64/hw/bootctrl.sdm845.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/hw/bootctrl.sdm845.so \
+    $(RECOVERY_ROOT)/vendor/lib64/hw/android.hardware.boot@1.0-impl.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/hw/android.hardware.boot@1.0-impl.so \
+    $(RECOVERY_ROOT)/vendor/lib64/librecovery_updater_msm.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/librecovery_updater_msm.so \
+    $(RECOVERY_ROOT)/vendor/lib64/libion.so:$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib64/libion.so

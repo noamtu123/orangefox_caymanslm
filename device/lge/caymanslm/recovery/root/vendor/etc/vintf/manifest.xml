@@ -64,4 +64,33 @@
             <instance>default</instance>
         </interface>
     </hal>
+    <!--
+      Boot control, declared at 1.0 ON PURPOSE - this is what makes A/B slot
+      switching from the recovery UI actually reach the bootloader.
+
+      Only the 1.0 service uses the hw_get_module passthrough impl
+      (android.hardware.boot@1.0-impl-1.1.so), which loads the vendor
+      bootctrl.sdm845.so and drives the Qualcomm GPT partition attributes that
+      LG's bootloader really reads. AOSP's boot@1.1-service instead compiles in
+      the generic libboot_control, which keeps slot state in the misc partition,
+      somewhere this bootloader never looks. Measured 2026-08-11: with the 1.1
+      service running, bootctl reported success and misc showed slot A priority
+      15 / B 14, while `fastboot getvar current-slot` still said b.
+
+      Without this entry the 1.0 interface is unreachable even when started:
+        hwservicemanager: getTransport: Cannot find entry
+          android.hardware.boot@1.0::IBootControl/default in either framework
+          or device VINTF manifest.
+      and clients silently fall back to 1.1 ("bootctl: Using HIDL version 1.1").
+      1.1 is deliberately NOT declared and NOT started, so nothing prefers it.
+    -->
+    <hal format="hidl">
+        <name>android.hardware.boot</name>
+        <transport>hwbinder</transport>
+        <version>1.0</version>
+        <interface>
+            <name>IBootControl</name>
+            <instance>default</instance>
+        </interface>
+    </hal>
 </manifest>

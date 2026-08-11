@@ -1,4 +1,4 @@
-# caymanslm FBE decrypt blob package — source: vendor_a (G91030a / V30a, A11, RKQ1.210420.001, ISR)
+﻿# caymanslm FBE decrypt blob package â€” source: vendor_a (G91030a / V30a, A11, RKQ1.210420.001, ISR)
 # arch: arm64 (64-bit)
 #
 # ELF dependency closure verified for the keymaster@4.0 + gatekeeper@1.0 +
@@ -30,8 +30,23 @@ f0aba1daa3e5d874d2b4774a16fe038587d44041f7ea8dccb229d9b1d48bdc90 14976        /l
 110dd79147fa6d6bdf7d09f9c64279909474d84d8c749908012d6d7e5f9dc210 18928        /lib64/libqcbor.so -> /vendor/lib64/libqcbor.so
 d1f2a5a4ea06e4b9a47f1a49db8203a6cca6ab6e7ce42e871ec8095a0d0ae765 241088       /lib64/libdiag.so -> /vendor/lib64/libdiag.so
 f1d37cdd3985f797b9a8f37679eb6e2bff920dea1ff74c361cc01af4ef77d3bc 40296        /lib64/libdrmfs.so -> /vendor/lib64/libdrmfs.so
-# qseecomd runtime dlopen() plugins (NOT in any ELF DT_NEEDED closure — added
+# qseecomd runtime dlopen() plugins (NOT in any ELF DT_NEEDED closure â€” added
 # after on-device proof 2026-07-22 that their absence kills the whole crypto
 # chain; see device.mk comment). Pulled from this device's live stock vendor.
 c7760654b8e981d3e7f89ec190227555cebc22bdb62f061fc21cabfa8239dbca 45592        /lib64/librpmb.so -> /vendor/lib64/librpmb.so
 59648e71f10cdf6e620b9132fbd70fdb4980314d6d182ead4df721e44bc3d766 10768        /lib64/libssd.so -> /vendor/lib64/libssd.so
+
+# --- boot control HAL (slot switching), added 2026-08-11 -------------------
+# source: vendor_a and system_a of stock A12 (SKQ1.211103.001) on this handset.
+# The generic AOSP libboot_control writes slot state to misc, which LG's
+# bootloader ignores (it uses GPT attribute bits), so OrangeFox's slot switch
+# actually drives the GPT attributes; the other two complete its ELF closure.
+# Installed to /vendor/lib64 (hw_get_module probes /vendor/lib64/hw too); the
+# boot-hal-1-1 service sets LD_LIBRARY_PATH=/vendor/lib64:/system/lib64 so the
+# closure resolves. /system/lib64 is unusable: system/memory/libion owns the
+# soong install rule for recovery/root/system/lib64/libion.so and blocks it.
+
+68e47b816a540fa30a3b66a3d539e576d53d4ee3fc859eeb4303fab88afe3488 10744        /system/lib64/libion.so (from system_a) -> /vendor/lib64/libion.so
+3e2daaf0830e65d6ce751a13a6a06ff71a2fe3c5645a482b899c034fc2d978ae 24752        /lib64/hw/bootctrl.sdm845.so -> /vendor/lib64/hw/bootctrl.sdm845.so
+7d734f39d9d32ff926e2f881f450432b0a3ba591259d14b970950e292ac89061 36888        /lib64/librecovery_updater_msm.so -> /vendor/lib64/librecovery_updater_msm.so
+cd2ff68b11b940448ae321524b300fa2bfe5f4f31eb8cc284e1931b8712545db 16680        /lib64/hw/android.hardware.boot@1.0-impl.so -> /vendor/lib64/hw/android.hardware.boot@1.0-impl.so
