@@ -38,6 +38,10 @@
 #include <iostream>
 #include <iomanip>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
+#include <ctype.h>
+#include <inttypes.h>
+#include <limits.h>
 #include <linux/fs.h>
 #include <sys/mount.h>
 #include <sys/poll.h>
@@ -3682,6 +3686,113 @@ void TWPartitionManager::Override_Active_Slot(const string& Slot) {
 	PartitionManager.Update_System_Details();
 }
 
+#ifdef AB_OTA_UPDATER
+// Qualcomm's bootloader does not read AOSP's bootloader_control struct out of
+// misc; it reads the A/B attribute bits in the GPT entry of each slot's boot
+// partition. Read those back so a switch can be confirmed against what the
+// bootloader will actually do, rather than against what the HAL claims.
+//
+// This matters in both directions on this device. Qualcomm's
+// set_active_boot_slot writes the GPT and then tries to move the UFS boot LUN
+// for xbl, which LG's firmware refuses ("Failed to switch xbl boot partition"),
+// so the HAL returns an error for a switch that has already taken effect.
+//
+// Returns 1 if the bootloader will now boot Slot, 0 if it will not, and -1 when
+// the GPT could not be read -- the caller then has nothing better to go on than
+// the HAL's own answer.
+static int Slot_Active_In_GPT(const string& Slot) {
+	// Qualcomm packs its slot metadata into the top 16 bits of the GPT
+	// attribute field: priority 0-1, active 2, retry count 3-5, successful 6,
+	// unbootable 7.
+	static const uint64_t kAttrActive = 1ULL << (48 + 2);
+	static const uint64_t kAttrUnbootable = 1ULL << (48 + 7);
+
+	const string name = (Slot == "B") ? "boot_b" : "boot_a";
+	char resolved[PATH_MAX];
+	if (realpath(("/dev/block/by-name/" + name).c_str(), resolved) == NULL) {
+		LOGINFO("Slot_Active_In_GPT: cannot resolve %s: %s\n", name.c_str(), strerror(errno));
+		return -1;
+	}
+	// The GPT lives on the whole disk, not the partition: /dev/block/sde11 -> /dev/block/sde
+	string disk(resolved);
+	while (!disk.empty() && isdigit(disk[disk.size() - 1]))
+		disk.erase(disk.size() - 1);
+
+	int fd = open(disk.c_str(), O_RDONLY | O_CLOEXEC);
+	if (fd < 0) {
+		LOGINFO("Slot_Active_In_GPT: cannot open %s: %s\n", disk.c_str(), strerror(errno));
+		return -1;
+	}
+
+	int sector_size = 0;
+	if (ioctl(fd, BLKSSZGET, &sector_size) < 0 || sector_size <= 0)
+		sector_size = 512;
+
+	// GPT header at LBA 1. UFS reports 4096-byte sectors here, so the offsets
+	// have to come from the device rather than from the usual 512 assumption.
+	struct __attribute__((packed)) {
+		char signature[8];
+		uint32_t revision;
+		uint32_t header_size;
+		uint32_t header_crc;
+		uint32_t reserved;
+		uint64_t current_lba;
+		uint64_t backup_lba;
+		uint64_t first_usable_lba;
+		uint64_t last_usable_lba;
+		uint8_t disk_guid[16];
+		uint64_t entries_lba;
+		uint32_t entry_count;
+		uint32_t entry_size;
+	} header;
+	int ret = -1;
+	if (pread64(fd, &header, sizeof(header), (off64_t)sector_size) != (ssize_t)sizeof(header)) {
+		LOGINFO("Slot_Active_In_GPT: cannot read the GPT header of %s: %s\n", disk.c_str(), strerror(errno));
+		goto out;
+	}
+	if (memcmp(header.signature, "EFI PART", 8) != 0) {
+		LOGINFO("Slot_Active_In_GPT: %s carries no GPT\n", disk.c_str());
+		goto out;
+	}
+	if (header.entry_size < 128 || header.entry_count == 0 || header.entry_count > 512) {
+		LOGINFO("Slot_Active_In_GPT: implausible GPT on %s (%u entries of %u bytes)\n",
+			disk.c_str(), header.entry_count, header.entry_size);
+		goto out;
+	}
+
+	for (uint32_t i = 0; i < header.entry_count; i++) {
+		struct __attribute__((packed)) {
+			uint8_t type_guid[16];
+			uint8_t part_guid[16];
+			uint64_t first_lba;
+			uint64_t last_lba;
+			uint64_t attributes;
+			uint16_t name[36];	// UTF-16LE, NUL terminated
+		} entry;
+		off64_t offset = (off64_t)header.entries_lba * sector_size + (off64_t)i * header.entry_size;
+		if (pread64(fd, &entry, sizeof(entry), offset) != (ssize_t)sizeof(entry))
+			break;
+
+		string entry_name;
+		for (size_t c = 0; c < sizeof(entry.name) / sizeof(entry.name[0]) && entry.name[c]; c++)
+			entry_name += (char)(entry.name[c] & 0xff);	// partition names are ASCII
+		if (entry_name != name)
+			continue;
+
+		bool active = (entry.attributes & kAttrActive) && !(entry.attributes & kAttrUnbootable);
+		LOGINFO("Slot_Active_In_GPT: %s attributes 0x%016" PRIx64 " -> %s\n",
+			name.c_str(), entry.attributes, active ? "active" : "not active");
+		ret = active ? 1 : 0;
+		goto out;
+	}
+	LOGINFO("Slot_Active_In_GPT: no %s entry in the GPT of %s\n", name.c_str(), disk.c_str());
+
+out:
+	close(fd);
+	return ret;
+}
+#endif // AB_OTA_UPDATER
+
 void TWPartitionManager::Set_Active_Slot(const string& Slot) {
 	if (Slot != "A" && Slot != "B") {
 		LOGERR("Set_Active_Slot invalid slot '%s'\n", Slot.c_str());
@@ -3700,22 +3811,19 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
 		const auto module = BootControlClient::WaitForService();
 		if (module == nullptr) {
 			LOGERR("Error getting bootctrl module.\n");
-			gui_msg(Msg(msg::kError, "unable_set_boot_slot=Error changing bootloader boot slot to {1}")(Slot));
 		} else {
 			int32_t slot_number = 0;
 			if (Slot == "B")
 				slot_number = 1;
 			CommandResult result = module->SetActiveBootSlot(slot_number);
-			if (!result.success)
-				gui_msg(Msg(msg::kError, "unable_set_boot_slot=Error changing bootloader boot slot to {1}")(Slot));
-			else
-				slot_switched = true;
+			slot_switched = result.success;
+			if (!slot_switched)
+				LOGERR("SetActiveBootSlot(%d) failed: %s\n", slot_number, result.errMsg.c_str());
 		}
 	#else // OF_USE_AIDL_BOOT_CONTROL
 		android::sp<IBootControl> module = IBootControl::getService();
 		if (module == nullptr) {
 			LOGERR("Error getting bootctrl module.\n");
-			gui_msg(Msg(msg::kError, "unable_set_boot_slot=Error changing bootloader boot slot to {1}")(Slot));
 		} else {
 			uint32_t slot_number = 0;
 			if (Slot == "B")
@@ -3723,22 +3831,35 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
 			CommandResult result;
 			auto ret = module->setActiveBootSlot(slot_number, [&result]
 					(const CommandResult &cb_result) { result = cb_result; });
-			if (!ret.isOk() || !result.success)
-				gui_msg(Msg(msg::kError, "unable_set_boot_slot=Error changing bootloader boot slot to {1}")(Slot));
-			else
-				slot_switched = true;
+			slot_switched = ret.isOk() && result.success;
+			if (!slot_switched)
+				LOGERR("setActiveBootSlot(%u) failed: %s\n", slot_number,
+					ret.isOk() ? result.errMsg.c_str() : ret.description().c_str());
 		}
 	#endif // OF_USE_AIDL_BOOT_CONTROL
-		// Never advertise a switch that did not happen. Upstream updates
-		// Active_Slot_Display unconditionally, so when the boot control HAL is
-		// unreachable -- which it is in recovery unless the device tree starts
-		// boot-hal-1-1 explicitly, since recovery init does not import
-		// /system/etc/init and that service ships `disabled` -- the UI shows the
-		// new slot, the bootloader is never told, and the device quietly boots
-		// the old slot with nothing on screen to say so.
+		// Never advertise a switch that did not happen, and never report a
+		// failure for one that did. The HAL's return value answers neither
+		// question reliably here, so ask the GPT the bootloader reads.
+		//
+		// Upstream updates Active_Slot_Display unconditionally, so when the boot
+		// control HAL is unreachable -- which it is in recovery unless the device
+		// tree starts boot-hal-1-0 explicitly, since recovery init does not
+		// import /system/etc/init and that service ships `disabled` -- the UI
+		// shows the new slot, the bootloader is never told, and the device
+		// quietly boots the old slot with nothing on screen to say so. In the
+		// other direction Qualcomm's routine flips the GPT and then fails on
+		// xbl's boot LUN, returning "Operation not permitted" for a switch that
+		// has already happened.
+		int confirmed = Slot_Active_In_GPT(Slot);
+		if (confirmed >= 0 && (bool)confirmed != slot_switched) {
+			LOGINFO("Set_Active_Slot: the boot control HAL reported %s, but the GPT says slot %s is %sactive; trusting the GPT\n",
+				slot_switched ? "success" : "failure", Slot.c_str(), confirmed ? "" : "not ");
+			slot_switched = (confirmed == 1);
+		}
 		if (!slot_switched) {
 			LOGERR("Set_Active_Slot: bootloader was NOT switched to %s; leaving the displayed slot unchanged\n",
 				Slot.c_str());
+			gui_msg(Msg(msg::kError, "unable_set_boot_slot=Error changing bootloader boot slot to {1}")(Slot));
 			return;
 		}
 		DataManager::SetValue("tw_active_slot", Slot); // Doing this outside of this if block may result in a seg fault because the DataManager may not be ready yet
