@@ -255,6 +255,15 @@ BOARD_USES_QCOM_FBE_DECRYPTION := true
 # the module-name request below is what actually installs the library.
 TARGET_RECOVERY_DEVICE_MODULES += libsysutils
 
+# NOTE: libion is deliberately NOT requested here. It completes the ELF closure
+# of the bundled bootctrl.sdm845.so (see the boot control block in device.mk),
+# but `TARGET_RECOVERY_DEVICE_MODULES += libion` registers an install without
+# pulling system/memory/libion into the build graph — no android_recovery_arm64
+# variant is produced and the library never reaches the ramdisk — while its
+# soong rule still owns recovery/root/system/lib64/libion.so and blocks any
+# PRODUCT_COPY_FILES for that path. A private copy ships under /vendor/lib64
+# instead, which is not contested.
+
 # Recovery sepolicy for the bundled crypto services.
 BOARD_VENDOR_SEPOLICY_DIRS += $(DEVICE_PATH)/sepolicy/vendor
 

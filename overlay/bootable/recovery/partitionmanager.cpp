@@ -3691,11 +3691,16 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
 		return;
 	LOGINFO("Setting active slot %s\n", Slot.c_str());
 #ifdef AB_OTA_UPDATER
+	// An empty Active_Slot_Display means this is the start-up detection call
+	// (from the ro.boot.slot_suffix probe), not a user-requested switch, so
+	// just record whichever slot the bootloader already picked.
 	if (!Active_Slot_Display.empty()) {
+		bool slot_switched = false;
 	#ifdef OF_USE_AIDL_BOOT_CONTROL
 		const auto module = BootControlClient::WaitForService();
 		if (module == nullptr) {
 			LOGERR("Error getting bootctrl module.\n");
+			gui_msg(Msg(msg::kError, "unable_set_boot_slot=Error changing bootloader boot slot to {1}")(Slot));
 		} else {
 			int32_t slot_number = 0;
 			if (Slot == "B")
@@ -3703,11 +3708,14 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
 			CommandResult result = module->SetActiveBootSlot(slot_number);
 			if (!result.success)
 				gui_msg(Msg(msg::kError, "unable_set_boot_slot=Error changing bootloader boot slot to {1}")(Slot));
+			else
+				slot_switched = true;
 		}
 	#else // OF_USE_AIDL_BOOT_CONTROL
 		android::sp<IBootControl> module = IBootControl::getService();
 		if (module == nullptr) {
 			LOGERR("Error getting bootctrl module.\n");
+			gui_msg(Msg(msg::kError, "unable_set_boot_slot=Error changing bootloader boot slot to {1}")(Slot));
 		} else {
 			uint32_t slot_number = 0;
 			if (Slot == "B")
@@ -3717,8 +3725,22 @@ void TWPartitionManager::Set_Active_Slot(const string& Slot) {
 					(const CommandResult &cb_result) { result = cb_result; });
 			if (!ret.isOk() || !result.success)
 				gui_msg(Msg(msg::kError, "unable_set_boot_slot=Error changing bootloader boot slot to {1}")(Slot));
+			else
+				slot_switched = true;
 		}
 	#endif // OF_USE_AIDL_BOOT_CONTROL
+		// Never advertise a switch that did not happen. Upstream updates
+		// Active_Slot_Display unconditionally, so when the boot control HAL is
+		// unreachable -- which it is in recovery unless the device tree starts
+		// boot-hal-1-1 explicitly, since recovery init does not import
+		// /system/etc/init and that service ships `disabled` -- the UI shows the
+		// new slot, the bootloader is never told, and the device quietly boots
+		// the old slot with nothing on screen to say so.
+		if (!slot_switched) {
+			LOGERR("Set_Active_Slot: bootloader was NOT switched to %s; leaving the displayed slot unchanged\n",
+				Slot.c_str());
+			return;
+		}
 		DataManager::SetValue("tw_active_slot", Slot); // Doing this outside of this if block may result in a seg fault because the DataManager may not be ready yet
 	}
 #else

@@ -102,3 +102,48 @@ service tombstoned /system/bin/tombstoned
     socket tombstoned_intercept seqpacket 0666 root root
     socket tombstoned_java_trace seqpacket 0666 root root
     seclabel u:r:recovery:s0
+
+# Boot control HAL -- REQUIRED FOR SLOT SWITCHING TO ACTUALLY WORK.
+#
+# Same trap as tombstoned above. The module ships its own
+# /system/etc/init/android.hardware.boot@1.1-service.rc, but recovery init
+# imports only /init.recovery.qcom_decrypt.rc and its chain -- never
+# /system/etc/init -- and that service is declared `disabled` anyway, so
+# nothing ever starts it.
+#
+# Without this, IBootControl::getService() returns nullptr and
+# TWPartitionManager::Set_Active_Slot() cannot reach the bootloader. Upstream
+# then updates Active_Slot_Display regardless, so the UI reports the new slot
+# while the bootloader was never told and the device boots the old slot --
+# silently, with no on-screen error. (partitionmanager.cpp is patched to stop
+# lying about that, but this is what makes the switch actually happen.)
+# `fastboot set_active` is unaffected: it talks to the bootloader directly,
+# which is why that route always worked.
+#
+# Started once hwservicemanager is up, so the HAL has somewhere to register
+# rather than crash-looping -- the same pattern used for keystore2 above.
+on property:init.svc.hwservicemanager=running
+    start boot-hal-1-0
+
+# Version 1.0 ON PURPOSE, not 1.1. Only the 1.0 service uses the hw_get_module
+# passthrough impl (android.hardware.boot@1.0-impl-1.1.so), which loads the
+# bundled vendor bootctrl.sdm845.so and drives the Qualcomm GPT partition
+# attributes LG's bootloader actually reads. AOSP's boot@1.1-service compiles in
+# the generic libboot_control, which writes slot state to the misc partition
+# instead: measured 2026-08-11, it reported success and set slot A priority 15 /
+# B 14 in misc while `fastboot getvar current-slot` still said b.
+#
+# The matching <hal>android.hardware.boot</hal> 1.0 entry in
+# recovery/root/vendor/etc/vintf/manifest.xml is required too, or clients get
+# "Cannot find entry android.hardware.boot@1.0::IBootControl/default" from
+# hwservicemanager and quietly fall back to 1.1.
+#
+# LD_LIBRARY_PATH mirrors the shipped android.hardware.boot@1.0-service.rc: the
+# bundled bootctrl.sdm845.so and its closure (librecovery_updater_msm.so,
+# libion.so) live in /vendor/lib64, as the keymaster/gatekeeper blobs do.
+service boot-hal-1-0 /system/bin/android.hardware.boot@1.0-service
+    class hal
+    user root
+    group root
+    seclabel u:r:recovery:s0
+    setenv LD_LIBRARY_PATH /vendor/lib64:/vendor/lib:/system/lib64:/system/lib
